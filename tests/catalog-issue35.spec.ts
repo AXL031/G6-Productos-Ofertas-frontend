@@ -41,13 +41,13 @@ test("POM-01: create and rename masters preserve their IDs and refresh Catalog n
   const catalog = new MockCatalogRepository(taxonomy);
   const category = await official.category.crear({ nombre: "Categoría transversal", slug: "categoria-transversal" });
   const brand = await official.brand.crear({ nombre: "Marca transversal", descripcion: null, paisOrigenIso: null });
-  const created = await catalog.create({ nombre: "Producto compartido", descripcion: "Identidades sin migración", categoriaId: category.id, marcaId: brand.marcaId, tipoProductoId: "TIP-CAMISA", skuBase: "SHARED-001", tieneVariantes: true, precioBaseInicial: 20 });
+  const created = await catalog.create({ nombre: "Producto compartido", descripcion: "Identidades sin migración", categoriaId: category.id, marcaId: brand.marcaId, tipoProductoId: "TIP-CAMISETA", skuBase: "SHARED-001", tieneVariantes: true, precioBaseInicial: 20 });
   await official.category.actualizar({ id: category.id, nombre: "Categoría renombrada", slug: category.slug, orden: 1 });
   await official.brand.actualizar({ marcaId: brand.marcaId, nombre: "Marca renombrada", descripcion: null, paisOrigenIso: null });
   const detail = await catalog.getById(created.id);
   expect(detail).toMatchObject({ id: created.id, categoryId: category.id, categoryName: "Categoría renombrada", brandId: brand.marcaId, brandName: "Marca renombrada", status: "BORRADOR", skuBase: "SHARED-001" });
   expect((await catalog.list({ page: 1, pageSize: 100 })).items.find(row => row.id === created.id)).toMatchObject({ categoryName: "Categoría renombrada", brandName: "Marca renombrada" });
-  expect((await catalog.getById("PROD-OXF-001"))?.variants).toEqual(expect.arrayContaining([expect.objectContaining({ variantId: "VAR-OXF-BLA-M", sku: "CAM-OXF-BLA-M", status: "ACTIVA" })]));
+  expect((await catalog.getById("PROD-RUN-001"))?.variants).toEqual(expect.arrayContaining([expect.objectContaining({ variantId: "VAR-RUN-BLA-M", sku: "CAM-RUN-BLA-M", status: "ACTIVA" })]));
 });
 
 test("POM-01/POM-04: official roles stay unknown and unknown IDs do not become empty schemas", async () => {
@@ -78,8 +78,8 @@ test("POM-01/POM-04: real category creation flows into product selector and pers
   const productId = page.url().split("/productos/")[1];
   await page.getByRole("link", { name: "Consultar precios", exact: true }).click();
   await page.getByRole("combobox", { name: "Producto o SKU", exact: true }).fill("SHARED-UI-001");
-  await expect(page.getByRole("option", { name: /Producto con categoría integrada.*SHARED-UI-001.*BORRADOR/ })).toBeVisible();
-  await page.getByRole("option", { name: /Producto con categoría integrada.*SHARED-UI-001.*BORRADOR/ }).click();
+  await expect(page.getByRole("option", { name: /Producto con categoría integrada.*SHARED-UI-001/ })).toBeVisible();
+  await page.getByRole("option", { name: /Producto con categoría integrada.*SHARED-UI-001/ }).click();
   await page.getByRole("button", { name: "Consultar", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`target=${productId}`));
   await page.screenshot({ path: test.info().outputPath("shared-catalog-pricing-1440.png"), fullPage: true });
@@ -88,12 +88,12 @@ test("POM-01/POM-04: real category creation flows into product selector and pers
 
 test("POM-02: product SKU cannot reuse an existing variant SKU", async () => {
   const catalog = new MockCatalogRepository();
-  await expect(catalog.create({ nombre: "Duplicado", descripcion: "Prueba de identidad", categoriaId: "CAT-ROPA", tipoProductoId: "TIP-CAMISA", marcaId: "BRD-INKA", skuBase: "cam-oxf-bla-m", tieneVariantes: false, precioBaseInicial: 20 })).rejects.toMatchObject({ kind: "duplicate_sku" });
+  await expect(catalog.create({ nombre: "Duplicado", descripcion: "Prueba de identidad", categoriaId: "CAT-ROPA", tipoProductoId: "TIP-CAMISETA", marcaId: "BRD-INKA", skuBase: "cam-run-bla-m", tieneVariantes: false, precioBaseInicial: 20 })).rejects.toMatchObject({ kind: "duplicate_sku" });
 });
 
 test("POM-02: variant SKU cannot reuse a simple product sellable SKU", async () => {
   const catalog = new MockCatalogRepository();
-  await expect(catalog.createVariant("PROD-OXF-001", { sku: "moch-ent-001", identifyingAttributes: [{ caracteristicaId: "CAR-COLOR", nombre: "Color", tipo: "LISTA", valorId: "COL-ROJ", valor: "Rojo Carmesí" }] })).rejects.toMatchObject({ kind: "duplicate_sku" });
+  await expect(catalog.createVariant("PROD-RUN-001", { sku: "moch-ent-001", identifyingAttributes: [{ caracteristicaId: "CAR-COLOR", nombre: "Color", tipo: "LISTA", valorId: "COL-ROJ", valor: "Rojo Carmesí" }] })).rejects.toMatchObject({ kind: "duplicate_sku" });
 });
 
 test("POM-01/POM-04: a brand created in the real app is selectable in Catalog", async ({ page }) => {
@@ -107,7 +107,7 @@ test("POM-01/POM-04: a brand created in the real app is selectable in Catalog", 
   await expect(page.getByRole("option", { name: "Marca transversal Poma", exact: true })).toBeVisible();
 });
 
-test("POM-03: Pricing reads the current Catalog identity and state", async () => {
+test("POM-03: Pricing reads the current Catalog identity and name without fabricating a price", async () => {
   mockCatalogRepository.reset();
   const signal = new AbortController().signal;
   const prices = createMockPricingRepository({ now: () => "2026-10-17T12:00:00Z" });
@@ -117,26 +117,27 @@ test("POM-03: Pricing reads the current Catalog identity and state", async () =>
   const target = (await prices.listTargets(signal)).find(row => row.productId === product.id);
   expect(target).toMatchObject({ id: product.id, referenceSku: product.skuBase });
   expect(target?.label).toContain("Mochila transversal");
-  expect(target?.label).toContain("INACTIVO");
+  expect((await mockCatalogRepository.getById(product.id))?.status).toBe("INACTIVO");
+  expect(await prices.read({ targetId: target!.id, channel: "global" }, signal)).toBeNull();
 });
 
 test("POM-03: Promotions preserves Catalog IDs/SKU and excludes inactive parent", async () => {
   mockCatalogRepository.reset();
   const signal = new AbortController().signal;
   const consumer = createMockPromotionCatalogRepository();
-  const before = (await consumer.products(signal)).find(row => row.id === "PROD-OXF-001");
-  expect(before?.skus).toEqual(expect.arrayContaining([expect.objectContaining({ sku: "CAM-OXF-BLA-M", active: true })]));
-  await mockCatalogRepository.deactivate("PROD-OXF-001");
-  expect((await consumer.products(signal)).some(row => row.id === "PROD-OXF-001")).toBe(false);
+  const before = (await consumer.products(signal)).find(row => row.id === "PROD-RUN-001");
+  expect(before?.skus).toEqual(expect.arrayContaining([expect.objectContaining({ sku: "CAM-RUN-BLA-M", active: true })]));
+  await mockCatalogRepository.deactivate("PROD-RUN-001");
+  expect((await consumer.products(signal)).some(row => row.id === "PROD-RUN-001")).toBe(false);
 });
 
 test("POM-03: real Promotions selector follows Catalog parent deactivation", async ({ page }) => {
   test.setTimeout(60000);
   await page.goto("/promociones/nueva/alcance");
-  await expect(page.getByRole("checkbox", { name: "Producto completo: Camisa Oxford Manga Larga", exact: true })).toBeVisible();
-  await expect(page.getByRole("checkbox", { name: /SKU específico: CAM-OXF-BLA-M/ })).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: "Producto completo: Camiseta Running Endurance", exact: true })).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: /SKU específico: CAM-RUN-BLA-M/ })).toBeVisible();
   await page.getByRole("link", { name: "Gestión de productos", exact: true }).click();
-  await page.getByRole("row").filter({ hasText: "Camisa Oxford Manga Larga" }).getByRole("link", { name: "Ver detalle", exact: true }).click();
+  await page.getByRole("row").filter({ hasText: "Camiseta Running Endurance" }).getByRole("link", { name: "Ver detalle de Camiseta Running Endurance", exact: true }).click();
   await page.getByRole("button", { name: "Desactivar", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Desactivar Producto", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
@@ -145,8 +146,8 @@ test("POM-03: real Promotions selector follows Catalog parent deactivation", asy
   await page.getByRole("link", { name: "Crear promoción", exact: true }).click();
   await page.getByRole("link", { name: "Seleccionar alcance", exact: true }).click();
   await expect(page.getByText("Consultando catálogo…", { exact: true })).toHaveCount(0);
-  await expect(page.getByRole("checkbox", { name: "Producto completo: Running Essential", exact: true })).toBeVisible();
-  await expect(page.getByRole("checkbox", { name: /Camisa Oxford Manga Larga|CAM-OXF-BLA-M/ })).toHaveCount(0);
+  await expect(page.getByRole("checkbox", { name: "Producto completo: Casaca Cortaviento Trail", exact: true })).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: /Camiseta Running Endurance|CAM-RUN-BLA-M/ })).toHaveCount(0);
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: test.info().outputPath("shared-catalog-promotions-1440.png") });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

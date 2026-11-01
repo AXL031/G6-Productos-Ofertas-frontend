@@ -166,7 +166,9 @@ export class CatalogError extends Error {
       | "unknown"
       | "server"
       | "forbidden"
-      | "session",
+      | "session"
+      | "blocked_contract"
+      | "write_unknown",
     message: string,
     public readonly details?: Record<string, string>,
   ) {
@@ -222,7 +224,7 @@ export interface VariantPageResult {
 }
 
 export interface VariantCreatePayload {
-  sku?: string | null;
+  sku: string;
   identifyingAttributes?: ProductAttributeValue[];
   atributosIdentificadores?: ProductAttributeValue[];
   nonIdentifyingAttributes?: ProductAttributeValue[];

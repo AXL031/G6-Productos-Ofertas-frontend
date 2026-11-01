@@ -29,6 +29,7 @@ import {
   StatusBadge,
 } from "../../../components/shared";
 import { useProductDetail } from "../hooks/useProductDetail";
+import { CatalogReadError } from "../components/CatalogReadError";
 import {
   calculateVolumeCm3,
   productStatusLabel,
@@ -76,6 +77,8 @@ export function ProductDetailPage({ initialDialog }: ProductDetailPageProps) {
       </Stack>
     );
   }
+
+  if (["error", "forbidden", "session"].includes(detailState.status)) return <CatalogReadError error={detailState.error} />;
 
   if (detailState.status === "not_found" || !detailState.product) {
     return (

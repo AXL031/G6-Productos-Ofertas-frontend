@@ -178,7 +178,7 @@ export function createMockPricingRepository(
             names[existing.id] = catalogName;
           }
         }
-      } else if (persistEnabled) {
+      } else {
         const newTarget: PriceTarget = structuredClone(catalogTarget);
         if (newTarget.kind === "variant") {
           const parent = targets.find(t => t.kind === "product" && t.productId === newTarget.productId);
@@ -191,7 +191,7 @@ export function createMockPricingRepository(
         if (newTarget.kind === "product") {
           const catalogName = newTarget.label.slice(0, newTarget.label.lastIndexOf(" · "));
           names[newTarget.id] = catalogName || newTarget.label;
-          if (newTarget.initialRegular) {
+          if (persistEnabled && newTarget.initialRegular) {
             const hasExisting = records.some((r) => r.id === newTarget.id);
             if (!hasExisting) {
               const newRec: PriceView = {

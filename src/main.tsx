@@ -18,6 +18,7 @@ import { PromotionApiContext } from "./app/config/PromotionApiContext";
 import { PromotionSessionContext } from "./app/config/PromotionSessionContext";
 import { CatalogServicesContext } from "./features/catalog/services/CatalogServicesContext";
 import { getCatalogServices } from "./features/catalog/services/catalogServices";
+import { createOptionalCatalogHttpServices } from "./features/catalog/services/catalogHttpRuntime";
 import { createCombosRuntime } from "./features/combos/services/combosService";
 import { CombosProvider } from "./features/combos/components/CombosProvider";
 
@@ -39,6 +40,7 @@ async function start() {
         ).createOptionalPromotionSessionRuntime(gatewayOrigin, securityApiBase)
       : null;
   const combosRuntime = await createCombosRuntime(mode, runtime);
+  const catalogServices = (mode === "api" ? createOptionalCatalogHttpServices(gatewayOrigin) : null) ?? getCatalogServices(mode);
   root.render(
     <StrictMode>
       <MantineProvider
@@ -47,7 +49,7 @@ async function start() {
         forceColorScheme="light"
       >
         <DataModeContext.Provider value={mode}>
-          <CatalogServicesContext.Provider value={getCatalogServices(mode)}>
+          <CatalogServicesContext.Provider value={catalogServices}>
             <PricingProvider runtime={runtime}>
               <PromotionSessionContext.Provider
                 value={promotions?.session ?? null}

@@ -70,7 +70,7 @@ test.describe("P0 — Integración transversal completa de módulos con persiste
     // 7. Crear variante vendible en Catálogo para producto existente
     const variantSku = `CAM-RUN-AZU-XL-${Date.now().toString().slice(-4)}`;
     await page.goto("/productos/PROD-RUN-001/variantes/nueva");
-    await page.getByPlaceholder("Ej. PROD-RUN-AZUL-M (Opcional)").fill(variantSku);
+    await page.getByPlaceholder("Ej. PROD-RUN-AZUL-M").fill(variantSku);
 
     // Atributos de variante
     await page.getByRole("combobox", { name: "Color principal", exact: true }).click();
