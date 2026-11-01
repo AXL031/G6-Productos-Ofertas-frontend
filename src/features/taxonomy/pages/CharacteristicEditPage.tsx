@@ -38,7 +38,7 @@ export function CharacteristicEditPage() {
 
 function CharacteristicEditLoader({ id }: { id: string }) {
   const navigate = useNavigate();
-  const { state } = useCharacteristicDetail(id);
+  const { state, reload } = useCharacteristicDetail(id);
 
   const contenido =
     state.status === "loading" ? (
@@ -50,6 +50,7 @@ function CharacteristicEditLoader({ id }: { id: string }) {
       <FeedbackAlert
         semantic="error"
         title="No se pudo cargar la característica"
+        actions={<Button variant="outline" onClick={reload}>Reintentar consulta</Button>}
       >
         {state.message}
       </FeedbackAlert>
@@ -135,7 +136,7 @@ function CharacteristicEditForm({ detalle }: { detalle: CharacteristicDetail }) 
           </Group>
         }
       >
-        {`Se actualizó «${resultado.nombre}». La actualización es simulada y no se guarda en un backend.`}
+        {`Se actualizó «${resultado.nombre}».`}
       </FeedbackAlert>
     );
   }

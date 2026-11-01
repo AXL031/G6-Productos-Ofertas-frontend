@@ -11,8 +11,8 @@ export function PricingProvider({
   children: ReactNode;
 }) {
   const [catalogRevision, setCatalogRevision] = useState(0);
-  const providerRevision = useSyncExternalStore(runtime.updates.subscribe,
-    () => runtime.updates.version("listTargets"), () => runtime.updates.version("listTargets"));
+  const readRevision = useCallback(() => runtime.updates.version("listTargets"), [runtime]);
+  const sourceRevision = useSyncExternalStore(runtime.updates.subscribe, readRevision, readRevision);
   const retryCatalog = useCallback(
     () => setCatalogRevision((value) => value + 1),
     [],
@@ -21,7 +21,7 @@ export function PricingProvider({
     (signal: AbortSignal) => runtime.service.listTargets(signal),
     [runtime],
   );
-  const { state } = usePricingRead(`catalog:${catalogRevision}:${providerRevision}`, read);
+  const { state } = usePricingRead(`catalog:${catalogRevision}:${sourceRevision}`, read);
   return (
     <PricingContext.Provider value={{ runtime, catalog: state, retryCatalog }}>
       {children}

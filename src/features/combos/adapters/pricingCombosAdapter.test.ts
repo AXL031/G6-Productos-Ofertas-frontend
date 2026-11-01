@@ -91,17 +91,17 @@ describe("PricingCombosAdapter · referencias compartidas de Pricing", () => {
 
   it("hereda la referencia base de la variante y respeta una variante con override", async () => {
     const adapter = makeAdapter(createMockPricingRepository(fixedClock));
-    const inherited = await adapter.readCurrent(["CAM-OXF-BLA-M"]);
-    expect(inherited[0]).toMatchObject({ regularMinor: 13990, offerMinor: 12990, sku: "CAM-OXF-BLA-M" });
+    const inherited = await adapter.readCurrent(["CAM-RUN-BLA-M"]);
+    expect(inherited[0]).toMatchObject({ regularMinor: 13990, offerMinor: 12990, sku: "CAM-RUN-BLA-M" });
 
-    const override = await adapter.readCurrent(["CAM-OXF-AZU-L"]);
-    expect(override[0]).toMatchObject({ regularMinor: 14990, offerMinor: null, sku: "CAM-OXF-AZU-L" });
+    const override = await adapter.readCurrent(["CAM-RUN-AZU-L"]);
+    expect(override[0]).toMatchObject({ regularMinor: 14990, offerMinor: null, sku: "CAM-RUN-AZU-L" });
   });
 
   it("resuelve varios SKU y omite los que no tienen referencia publicada", async () => {
     const adapter = makeAdapter(createMockPricingRepository(fixedClock));
-    const resolved = await adapter.readCurrent(["CAS-COR-001", "CAM-OXF-BLA-M", "CAM-OXF-AZU-L"]);
-    expect(resolved.map((price) => price.sku)).toEqual(["CAS-COR-001", "CAM-OXF-BLA-M", "CAM-OXF-AZU-L"]);
+    const resolved = await adapter.readCurrent(["CAS-COR-001", "CAM-RUN-BLA-M", "CAM-RUN-AZU-L"]);
+    expect(resolved.map((price) => price.sku)).toEqual(["CAS-COR-001", "CAM-RUN-BLA-M", "CAM-RUN-AZU-L"]);
 
     await expect(adapter.readCurrent(["SKU-SIN-PRECIO"])).resolves.toEqual([]);
   });
@@ -129,6 +129,30 @@ describe("PricingCombosAdapter · referencias compartidas de Pricing", () => {
     expect((await adapter.readCurrent(["SKU-X"]))[0]?.regularMinor).toBe(1000);
     regular = "12.50";
     expect((await adapter.readCurrent(["SKU-X"]))[0]?.regularMinor).toBe(1250);
+  });
+
+  it("refleja en Combos una edición confirmada en el mismo repositorio mock", async () => {
+    const pricing = createMockPricingRepository(fixedClock);
+    const adapter = makeAdapter(pricing);
+    const signal = new AbortController().signal;
+    const target = { targetId: "combo-run-bla-m", channel: "global" as const };
+    const before = await pricing.readEditable(target, signal);
+    expect(before).not.toBeNull();
+
+    await pricing.update({
+      target,
+      version: before!.version,
+      draft: {
+        regular: "159.90",
+        offer: "149.90",
+        offerAction: "ESTABLECER",
+        currency: "PEN",
+        reason: "Ajuste de demostración",
+      },
+    }, signal);
+
+    await expect(adapter.readCurrent(["CAM-RUN-BLA-M"]))
+      .resolves.toMatchObject([{ regularMinor: 15990, offerMinor: 14990, priceVersion: before!.version + 1 }]);
   });
 
   it("falla explícitamente ante referencias ambiguas o importes/moneda inválidos", async () => {

@@ -14,12 +14,14 @@ import {
 import { useProductTypeList } from "../hooks/useProductTypeList";
 import { estadoCaracteristicaSemantic } from "../services/estadoSemantic";
 import type { ProductTypeListItem } from "../types";
+import { useMockStateRevision } from "../../shared/useMockStateRevision";
 
 export function ProductTypeListPage() {
   const navigate = useNavigate();
   const [revision, setRevision] = useState(0);
+  const mockRevision = useMockStateRevision(["taxonomy", "taxonomy-product-types"]);
   const [busqueda, setBusqueda] = useState("");
-  const { state } = useProductTypeList(revision);
+  const { state } = useProductTypeList(revision + mockRevision);
 
   const resultado = state.status === "success" ? state.result : undefined;
   const tipos = useMemo(() => resultado?.items ?? [], [resultado]);
@@ -67,7 +69,7 @@ export function ProductTypeListPage() {
     },
     {
       key: "schemaVersion",
-      header: "Schema version",
+      header: "Versión del esquema",
       width: 140,
       align: "right",
       render: (item) => <Text size="sm">{item.schemaVersion}</Text>,
@@ -112,7 +114,17 @@ export function ProductTypeListPage() {
       ? {
           title: "Sin tipos de producto",
           description:
-            "Aún no hay tipos de producto registrados para definir esquemas de atributos.",
+            "Todavía no hay tipos de producto registrados para definir esquemas de atributos.",
+          action: (
+            <Button
+              leftSection={
+                <IconPlus size={16} stroke={2} aria-hidden="true" />
+              }
+              onClick={() => navigate("/tipos-producto/nuevo")}
+            >
+              Crear tipo de producto
+            </Button>
+          ),
         }
       : {
           title: "Sin resultados",

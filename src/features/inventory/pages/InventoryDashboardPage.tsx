@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import {
   ActionIcon,
   Button,
+  Group,
   Select,
   Stack,
   Text,
@@ -16,7 +17,6 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import {
-  ContextNote,
   EntityTable,
   FeedbackAlert,
   FilterBar,
@@ -53,11 +53,12 @@ export function InventoryDashboardPage() {
 
   const {
     kpis,
+    generatedAt,
     alerts,
     distribution,
     stockItems,
     loading,
-    error,
+    sections,
     refetch,
   } = useInventoryDashboard(filters);
 
@@ -228,10 +229,10 @@ export function InventoryDashboardPage() {
 
   const tableState = loading
     ? { status: "loading" as const }
-    : error
+    : sections.stockItems.error
       ? {
           status: "error" as const,
-          message: error,
+          message: sections.stockItems.error,
           action: (
             <Button
               size="xs"
@@ -266,12 +267,20 @@ export function InventoryDashboardPage() {
       />
 
       <Stack gap="xl">
-        <ContextNote title="Panel de solo lectura">
-          Este panel resume indicadores clave del catálogo y almacenes. Para registrar recepciones de traslados
-          o ajustar umbrales, utiliza las vistas operativas de control de stock.
-        </ContextNote>
+        <Text
+          size="sm"
+          style={{
+            color: "var(--po-secondary)",
+            fontSize: 14,
+            lineHeight: "20px",
+          }}
+          fw={600}
+        >
+          Panel de solo lectura
+        </Text>
 
         {isRevisionMode && <DevScenarioSelector />}
+
 
         {(catalogErrors.categories ||
           catalogErrors.brands ||
@@ -312,20 +321,29 @@ export function InventoryDashboardPage() {
           <DashboardAlerts
             alerts={alerts}
             loading={loading}
-            error={error}
+            error={sections.alerts.error}
+            blockedReason={sections.alerts.blockedReason}
             onRetry={refetch}
           />
         </div>
 
         {/* Zona 3: 12 KPIs normativos */}
         <div>
-          <Title order={2} size="h3" mb="sm">
-            Resumen de indicadores clave
-          </Title>
+          <Group justify="space-between" align="baseline" mb="sm">
+            <Title order={2} size="h3">
+              Resumen de indicadores clave
+            </Title>
+            {generatedAt && (
+              <Text size="xs" c="dimmed">
+                Fecha/hora de generación: {generatedAt}
+              </Text>
+            )}
+          </Group>
           <DashboardKpiGrid
             kpis={kpis}
             loading={loading}
-            error={error}
+            error={sections.kpis.error}
+            blockedReason={sections.kpis.blockedReason}
             onRetry={refetch}
           />
         </div>
@@ -334,7 +352,8 @@ export function InventoryDashboardPage() {
         <LocationDistributionTable
           distribution={distribution}
           loading={loading}
-          error={error}
+          error={sections.distribution.error}
+          blockedReason={sections.distribution.blockedReason}
           onRetry={refetch}
         />
 
@@ -403,23 +422,32 @@ export function InventoryDashboardPage() {
               </Button>
             </FilterBar>
 
-            <EntityTable
-              caption="Existencias detalladas filtrables en almacenes y tiendas"
-              columns={columns}
-              rows={stockItems}
-              rowKey={(row) => `${row.sku}:${row.locationId}`}
-              state={tableState}
-              empty={{
-                title: "No se encontraron saldos de stock",
-                description:
-                  "No se encontraron SKUs para los criterios seleccionados.",
-                action: (
-                  <Button variant="outline" size="xs" onClick={handleResetFilters}>
-                    Limpiar filtros
-                  </Button>
-                ),
-              }}
-            />
+            {sections.stockItems.blockedReason ? (
+              <FeedbackAlert
+                semantic="warning"
+                title="Existencias por SKU no verificables con el contrato vigente"
+              >
+                {sections.stockItems.blockedReason}
+              </FeedbackAlert>
+            ) : (
+              <EntityTable
+                caption="Existencias detalladas filtrables en almacenes y tiendas"
+                columns={columns}
+                rows={stockItems}
+                rowKey={(row) => `${row.sku}:${row.locationId}`}
+                state={tableState}
+                empty={{
+                  title: "No se encontraron saldos de stock",
+                  description:
+                    "No se encontraron SKUs para los criterios seleccionados.",
+                  action: (
+                    <Button variant="outline" size="xs" onClick={handleResetFilters}>
+                      Limpiar filtros
+                    </Button>
+                  ),
+                }}
+              />
+            )}
           </Stack>
         </SectionCard>
       </Stack>

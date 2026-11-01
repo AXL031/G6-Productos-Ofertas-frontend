@@ -14,7 +14,7 @@ async function selectOption(
 }
 
 test.describe("MK-015: Control de stock, umbrales y traslados (Issue #17)", () => {
-  test("MK-015-S01: Muestra tabla de saldos autoritativos con cálculo y estado", async ({
+  test("@smoke MK-015-S01: Muestra tabla de saldos autoritativos con cálculo y estado", async ({
     page,
   }) => {
     await page.goto("/inventario");
@@ -34,10 +34,11 @@ test.describe("MK-015: Control de stock, umbrales y traslados (Issue #17)", () =
     await expect(page.getByText("ZAP-TRL-40-BLK")).toBeVisible();
     await expect(page.getByText("ZAP-TRL-42-BLK")).toBeVisible();
     await expect(page.getByText("MED-CP-U-BLK")).toBeVisible();
+    await expect(page.getByText("CAM-RUN-BLA-M")).toBeVisible();
 
     await expect(page.getByRole("cell", { name: "DISPONIBLE" }).first()).toBeVisible();
     await expect(page.getByRole("cell", { name: "STOCK_BAJO" }).first()).toBeVisible();
-    await expect(page.getByRole("cell", { name: "AGOTADO" })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "AGOTADO" }).first()).toBeVisible();
 
     const searchInput = page.getByRole("textbox", {
       name: "Buscar SKU o producto",
@@ -88,10 +89,12 @@ test.describe("MK-015: Control de stock, umbrales y traslados (Issue #17)", () =
     await globalInput.fill("12");
     await page.getByRole("button", { name: "Guardar umbral global" }).click();
 
-    await expect(page.getByText("Cambio aplicado")).toBeVisible();
+    await expect(page.getByText("Escritura confirmada")).toBeVisible();
     await expect(
-      page.getByText("Umbral global guardado correctamente."),
+      page.getByText("Umbral global actualizado correctamente."),
     ).toBeVisible();
+    // P1-01: no debe existir una confirmación local duplicada.
+    await expect(page.getByText("Cambio aplicado")).toHaveCount(0);
   });
 
   test("MK-015-S04 y S05: Bandeja de traslados y modal de recepción con aviso de discrepancia", async ({

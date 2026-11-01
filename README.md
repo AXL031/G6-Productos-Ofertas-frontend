@@ -1,12 +1,10 @@
 # Productos y Ofertas — Frontend
 
-Demo interna de lectura real preparada con selector explícito: [alcance, configuración y evidencias](docs/DEMO_G6_LECTURA_REAL.md). Su publicación requiere autorización final.
-
 Aplicación web de administración para el módulo Productos y Ofertas. Permite recorrer flujos de catálogo, taxonomía, precios, auditoría de precios, promociones, cupones, recomendaciones, carga masiva, gestión de combos e inventario en modo de demostración. Usa React 19, TypeScript 6, Vite 8, Mantine 9 y Tabler Icons; este repositorio es independiente de [Docs](https://github.com/Taller-SW-Web/G6-Productos-Ofertas-docs) y Backend. La presencia de puertos y adapters sustituibles facilita una futura integración, pero no acredita conexión HTTP con servicios reales.
 
 ## Inicio rápido
 
-Requisitos: Node.js `>=22.12.0` (definido en `package.json`) y npm. El lockfile fija las dependencias; usa npm para instalarlas.
+Requisitos: Node.js `>=22.12.0 <23` (definido en `package.json`) y npm. El lockfile fija las dependencias; usa npm para instalarlas.
 
 ```sh
 npm ci
@@ -31,11 +29,13 @@ npx playwright install chromium
 Después, ejecuta las validaciones:
 
 ```sh
-npm test                  # pruebas unitarias (Combos y Bulk) con Vitest
+npm test                  # pruebas unitarias de Combos, Bulk y Pricing con Vitest
 npm run test:e2e          # suite E2E completa de Playwright
-npm run test:ci           # unitarias + E2E, usado por CI
+npm run test:ci           # agregado local: unitarias + E2E + harness HTTP simulado
 npm run test:unit:combos  # solo unitarias de Combos
 npm run test:unit:bulk    # solo unitarias de Bulk
+npm run test:unit:pricing # adaptador HTTP de Pricing; transporte simulado
+npm run test:e2e:pricing  # harness HTTP de Pricing a 1440 × 900; respuestas simuladas
 ```
 
 Para construir y servir la versión compilada:
@@ -48,20 +48,37 @@ npm run preview
 
 `npm run preview` sirve `dist/` localmente; no publica ni despliega la aplicación. El workflow [frontend.yml](.github/workflows/frontend.yml) ejecuta typecheck, build, lint, pruebas y verificaciones de build/preview para ambos modos. Que el workflow exista no implica que haya corrido para un cambio concreto.
 
+El workflow actual ejecuta `npm test` y Playwright general; no invoca
+`test:ci` ni `test:e2e:pricing`. El harness HTTP de Pricing se ejecuta por separado
+y usa respuestas simuladas, sin Gateway ni PostgreSQL real. Su incorporación
+al CI queda como dependencia de Castilla; este PR no modifica workflows compartidos.
+
 ## Configuración de datos
 
-La selección general de datos usa `VITE_DATA_MODE`; la vista de consulta real usa además `VITE_G6_READ_DEMO` de forma explícita en la composición de App (ver [.env.example](.env.example)). Selecciona una vez el modo de datos global y se distribuye mediante `DataModeContext`.
+`VITE_DATA_MODE` es el único selector de modo de datos (ver [.env.example](.env.example)). Se selecciona una vez y se distribuye mediante `DataModeContext`. En modo `api`, Promotions permite configurar juntas las URLs públicas `VITE_GATEWAY_ORIGIN` (solo origen) y `VITE_G7_API_BASE` (base publicada de Seguridad, por ejemplo `https://seguridad.example.org/api/v1`). No son credenciales. HTTPS es obligatorio fuera de loopback; no se configuran tokens ni secretos en Vite.
+
+Si alguna URL de Promotions falta o es inválida, sus rutas muestran indisponibilidad explícita y los módulos independientes siguen arrancando. La integración HTTP solo se inicializa con ambas URLs válidas; en modo API nunca se habilitan mocks como fallback.
 
 | Valor | Comportamiento |
 |---|---|
-| `mock` | Demostración con repositorios en memoria y fixtures. No requiere Backend, credenciales ni conexión de red. Las escrituras simuladas se pierden al recargar. |
+| `mock` | Demostración con repositorios en memoria y fixtures. No requiere Backend, credenciales ni conexión de red. Las escrituras simuladas se conservan en `localStorage` de este navegador (ver «Persistencia de la demostración»). |
 | `api` | Selecciona puertos API cuando hay providers configurados; sin ellos, cada módulo define su respuesta. Bulk y Combos se detallan debajo. |
 
 **Excepción en Bulk:** `bulkService.ts` usa `mockBulkRepository` directamente, incluso cuando `VITE_DATA_MODE=api`; `/carga-masiva` no está entre las rutas que `CommercialModeGate` bloquea o trata según el modo. Por tanto, ese flujo sigue siendo una simulación en ambos modos. Es una discrepancia funcional que requiere corrección independiente; este cambio solo la documenta.
 
 En desarrollo, la aplicación usa `mock` si la variable no está definida. Para `npm run build` se requiere definir `VITE_DATA_MODE` expresamente como `mock` o `api`; un valor ausente o inválido detiene el build. Copiar `.env.example` a `.env.local` configura `mock`. Vite carga las variables al arrancar: reinicia el servidor o vuelve a construir tras cambiarlas.
 
-`api` no configura por sí solo una URL, autenticación ni servicios. En esta base no hay adapters HTTP de negocio conectados. Algunos módulos admiten inyectar implementaciones compatibles con sus puertos, lo que se prueba con dobles/harnesses; eso acredita sustituibilidad, no integración funcional con Backend.
+`api` no configura por sí solo una URL ni concede acceso. Con ambas URLs de integración, Promotions conecta su adaptador HTTP al cliente G7 de login/MFA/renovación/logout. Sin URLs conserva el bloqueo visible; una configuración incompleta falla al iniciar. Tokens, identidad y desafío permanecen solo en memoria: recargar exige login. El consumidor AMQP no se habilita desde el frontend. La sesión se prueba con fixtures HTTP explícitos; el recorrido por Gateway/PostgreSQL usa además un entorno descartable independiente. Ninguna de esas pruebas acredita G7 compartido, homologación ni despliegue. Detalles en [integración Promotions](docs/INTEGRACION_PROMOTIONS_GATEWAY.md).
+
+La demo interna de lectura G6 de productos, categorías y precios se conserva como ruta de demostración protegida por `VITE_G6_READ_DEMO`; no sustituye los flujos comerciales ni configura autenticación. Su alcance y validaciones están registrados en [demo G6](docs/DEMO_G6_LECTURA_REAL.md) y [Issue #35 Catálogo/SKU](docs/ISSUE_35_CATALOGO.md).
+
+### Persistencia de la demostración
+
+En modo `mock` y con un navegador real, las escrituras confirmadas de la demostración se guardan en `localStorage` bajo el prefijo `g6-productos-ofertas:mock:v1:<dominio>`, un registro por dominio (`catalog`, `taxonomy`, `pricing`, `price-audit`, `inventory`, `combos`, `promotions`, `bulk`). Al recargar, cada repositorio restaura su dominio **antes** de responder la primera consulta; si no hay estado válido, usa las fixtures. Un estado inválido o de versión incompatible se descarta en lugar de aplicarse.
+
+Esta persistencia es **local a este navegador**: no sincroniza entre dispositivos y no sustituye a Backend. Las pestañas del mismo navegador se sincronizan mediante eventos `storage`: al escribir otra pestaña el dominio afectado, la pestaña receptora vuelve a hidratarlo y notifica a sus consumidores. Solo se guarda estado confirmado; banderas transitorias (carga, hover, modales, errores de UI) nunca se persisten. La persistencia queda deshabilitada en modo `api` y en ejecuciones de pruebas (Node/Vitest/Playwright), que mantienen su almacenamiento aislado en memoria. No hay todavía una acción de fábrica visible para borrar el estado guardado; `clearMockState(dominio)` existe para las acciones de reinicio de la demostración.
+
+**Limitación de seguimiento en MK-010:** las operaciones pendientes de desasociación y desactivación de tipos de producto viven solo en memoria en el adapter mock. Al recargar se conservan el tipo, sus asociaciones y su versión confirmada, pero se pierde el `operationId` pendiente. El contrato disponible permite consultar el seguimiento por `operationId`, no listar operaciones, así que la demo debe reiniciar la solicitud. Una integración HTTP real deberá recuperar el seguimiento desde su backend.
 
 ## Funcionalidades y estado de datos
 
@@ -72,8 +89,8 @@ La tabla resume lo que muestran el código y la configuración de esta rama; la 
 | Productos y variantes/SKU | Pantallas y flujos de demostración mock. Los puertos permiten inyección; no hay provider HTTP configurado por defecto. |
 | Taxonomía (categorías, características, tipos, marcas y SEO) | Pantallas disponibles en mock. En `api`, `TaxonomyModeGate` bloquea estas rutas independientemente de los providers. Habilitar la integración requiere configurar los servicios/adapters y adaptar el gate; inyectar un provider por sí solo no desbloquea las pantallas. |
 | Precios y programaciones/importación | Flujos de demostración mock. El modo `api` requiere un adapter; la implementación predeterminada falla explícitamente, sin fallback. Las operaciones de archivo no acreditan procesamiento comercial de Backend. |
-| Auditoría de precios | Listado, detalle y exportación de demostración mock. Las ediciones confirmadas de Pricing incorporan asientos simulados durante la sesión; recargar los elimina. El runtime permite inyección, pero no incluye provider API predeterminado. Los archivos disponibles son muestras. |
-| Cupones, promociones y recomendaciones | Flujos de demostración mock. En modo `api`, `CommercialModeGate` bloquea estas rutas incondicionalmente. Una integración futura requiere configurar el provider y adaptar el gate; inyectar el provider por sí solo no desbloquea la interfaz. Las recomendaciones no calculan un precio final ni garantizan stock; ambos datos figuran como no disponibles en la demostración. |
+| Auditoría de precios | Listado, detalle y exportación de demostración mock. Las ediciones confirmadas de Pricing incorporan asientos simulados por sesión de navegador; recargar conserva los asientos emitidos. El runtime permite inyección, pero no incluye provider API predeterminado. Los archivos disponibles son muestras. |
+| Cupones, promociones y recomendaciones | Flujos de demostración mock. En modo `api`, `CommercialModeGate` bloquea estas rutas si no reciben un proveedor explícito mediante `PromotionApiContext`. El adaptador HTTP administrativo está conectado al cliente G7 de sesión en memoria cuando se configuran ambas URLs; su recorrido por Gateway/PostgreSQL está probado en entorno descartable; los selectores disponen de adaptador HTTP tipado de Catálogo/Taxonomía. La sesión G7 compartida, la prueba contra sus servicios reales y la verificación autoritativa de referencias del backend siguen pendientes. Ver [integración Promotions](docs/INTEGRACION_PROMOTIONS_GATEWAY.md). Las recomendaciones no calculan un precio final ni garantizan stock; ambos datos figuran como no disponibles en la demostración. |
 | Carga masiva | Simulación mock tanto en `mock` como en `api` por la excepción descrita arriba. La revisión local de archivos no sustituye la validación comercial; XLSX y procesamiento/exportación reales requieren Backend. Ver [límites de carga masiva](docs/ESTADO_CARGA_MASIVA.md). |
 | Combos | Gestión de combos (MK-002) con puertos tipados y adapters mock; la disponibilidad es información de catálogo compartido, sin consultar ni reservar stock real. En `api` sin provider la integración se muestra cerrada, sin fallback a fixtures. |
 | Inventario (control de stock, umbrales, traslados y dashboard) | Flujos de demostración mock (`MK-015` y `MK-016`). En modo `api`, `CommercialModeGate` bloquea las rutas de `/inventario` y `ApiPendingRepository` rechaza operaciones sin fallback a mocks. Soporta inyección de repositorio alternativo (`tests/harness/inventory-adapter.html`). Ver [contrato de inventario](docs/CONTRATO_INVENTARIO_FRONTEND.md). |
@@ -85,20 +102,29 @@ La demo conjunta de Pricing y Auditoría comparte únicamente las ediciones conf
 
 ## Gestión de combos (MK-002)
 
-Implementa S01–S04 como vistas administrativas con puertos tipados y adapters en memoria sobre el catálogo compartido de MK-003/MK-004. Rutas: `/combos` (S01), `/combos/nuevo` (S02 crear), `/combos/:comboId/editar` (S02 editar), `/combos/:comboId` (S03) y `/combos/:comboId/no-disponible` (S04). Se pueden crear, consultar, editar y desactivar combos en la sesión; recargar reinicia los cambios.
+Implementa S01–S04 como vistas administrativas con puertos tipados y adapters en memoria sobre el catálogo compartido de MK-003/MK-004. Rutas: `/combos` (S01), `/combos/nuevo` (S02 crear), `/combos/:comboId/editar` (S02 editar), `/combos/:comboId` (S03) y `/combos/:comboId/no-disponible` (S04). Se pueden crear, consultar, editar y desactivar combos; los cambios se conservan en este navegador mientras no se reinicie la demostración (ver «Persistencia de la demostración»).
 
 La elegibilidad de componentes, las reglas económicas y la disponibilidad informativa consultan las identidades del Catálogo compartido (no un catálogo paralelo). La disponibilidad se calcula como `min(floor(stockDisponibleSKU / cantidadRequeridaSKU))` sobre un snapshot inyectable; si los datos no permiten verificar, se muestra información incompleta o no verificable en lugar de un cero inventado. Los precios vigentes de referencia provienen del puerto de Pricing y se distinguen del precio comercial guardado.
 
 No hay provider HTTP real ni persistencia comercial. En modo `api`, la integración permanece cerrada y no cae a fixtures. La referencia consultada es OpenAPI `0.6.0-rc.1`: las operaciones administrativas de Combos están marcadas `provisional-internal`; `combos:leer`, `catalogo:leer` y `precios:leer` siguen pendientes de registro de scopes. El component spec de MK-002 permanece **En revisión**: esta entrega no declara aprobación UX, homologación ni integración API.
 
-La revisión [Catálogo/SKU, issue #35](docs/ISSUE_35_CATALOGO.md) actualiza la composición
-del demo: categorías/marcas editables provienen de Taxonomía; los nombres se resuelven
-por ID y los SKU comparten un espacio de unicidad entre productos y variantes.
-Pricing y Promociones leen la identidad/estado de los registros de Catálogo de la misma
-sesión. Pricing no crea un precio vigente a partir del precio inicial: un objetivo sin
-registro muestra «Sin precio aplicable». Se conservan las referencias históricas sin
-mapearlas por nombre; migración de IDs/roles oficiales y revisión entre owners siguen
-pendientes. Ver el informe para fuentes fijadas, pruebas, límites y evidencia de esta revisión.
+En la aplicación mock, Promociones y Recomendaciones consultan el mismo servicio
+de Catálogo que Productos/Variantes mediante
+`promotions/adapters/catalogPromotionRepository.ts`. Las ediciones, activaciones y
+desactivaciones se reflejan al abrir sus selectores durante la misma sesión; el
+guardado revalida productos y SKU activos. Los productos completos conservan su
+ID y los SKU específicos su código. No se calcula stock ni se obtiene un precio
+de referencia. Las reglas y campañas de muestra usan referencias explícitas al
+catálogo inicial; la lectura no sustituye referencias ausentes por otros productos.
+Los cupones consultan el nombre y la vigencia actuales de su promoción asociada,
+conservando sus límites y usos.
+
+`getPromotionRuntime("mock")` compone esta demostración integrada mediante
+`createCatalogMockPromotionServices(getCatalogServices("mock"))`. La factory
+`createMockPromotionServices` conserva la demostración aislada para pruebas con
+puertos/fixtures inyectados. No existe fallback desde el catálogo integrado al
+aislado ni desde API a mock. El [reporte de corrección #36](docs/CORRECCIONES_CUEVA_36.md)
+registra reproducción, pruebas y revisiones aún pendientes para #7/#8/#9.
 
 ## Arquitectura
 

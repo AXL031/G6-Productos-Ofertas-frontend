@@ -2,7 +2,6 @@ import { Link, useSearchParams } from "react-router-dom";
 import { Button, Skeleton, Stack } from "@mantine/core";
 import { IconArrowLeft } from "@tabler/icons-react";
 import {
-  ContextNote,
   FeedbackAlert,
   PageHeader,
 } from "../../../components/shared";
@@ -14,21 +13,21 @@ import type { StockFiltersQuery } from "../services/inventoryTypes";
 
 export function ThresholdsPage() {
   const [params] = useSearchParams();
-
+  const isRevisionMode =
+    import.meta.env.DEV && params.get("modoRevision") === "1";
   const {
     thresholds,
     loading,
     saving,
     error,
-    saveError,
+    feedback,
+    refreshWarning,
     updateGlobal,
     updateSku,
+    clearFeedback,
   } = useThresholds();
 
   const { items: stockItems } = useInventoryStock({} as StockFiltersQuery);
-
-  const isRevisionMode =
-    import.meta.env.DEV && params.get("modoRevision") === "1";
 
   return (
     <>
@@ -53,12 +52,6 @@ export function ThresholdsPage() {
       />
 
       <Stack gap="lg">
-        <ContextNote title="Precedencia de reglas de umbral">
-          El umbral resuelto usa primero la excepción por SKU y, si no existe, el umbral global.
-          Cuando el saldo disponible es menor o igual a este valor, el estado comercial pasa a{" "}
-          <strong>stock bajo</strong>.
-        </ContextNote>
-
         {isRevisionMode && <DevScenarioSelector />}
 
         {loading && !thresholds && (
@@ -74,9 +67,18 @@ export function ThresholdsPage() {
           </FeedbackAlert>
         )}
 
-        {saveError && (
-          <FeedbackAlert semantic="error" title="Error al actualizar umbral">
-            {saveError}
+        {refreshWarning && !error && (
+          <FeedbackAlert
+            semantic="warning"
+            title="No se pudo refrescar la configuración"
+          >
+            {refreshWarning}
+          </FeedbackAlert>
+        )}
+
+        {feedback && (
+          <FeedbackAlert semantic={feedback.semantic} title={feedback.title}>
+            {feedback.message}
           </FeedbackAlert>
         )}
 
@@ -87,6 +89,7 @@ export function ThresholdsPage() {
             saving={saving}
             onUpdateGlobal={updateGlobal}
             onUpdateSku={updateSku}
+            onUpdateStart={clearFeedback}
           />
         )}
       </Stack>
