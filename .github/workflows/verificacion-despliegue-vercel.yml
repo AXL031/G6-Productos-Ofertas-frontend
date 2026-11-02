@@ -8,8 +8,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: verificacion-produccion
-  cancel-in-progress: false
+  group: verificacion-produccion-${{ github.event.client_payload.git.sha || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
   identificar_despliegue:
@@ -23,6 +23,7 @@ jobs:
     environment: vercel-produccion
     permissions:
       contents: read
+      statuses: write
     outputs:
       url_inmutable: ${{ steps.identidad.outputs.deployment_url }}
       sha: ${{ steps.identidad.outputs.commit_sha }}
@@ -43,8 +44,13 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_TEAM_ID: ${{ vars.VERCEL_TEAM_ID }}
           VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
-          GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/verificar-despliegue-vercel.mjs
+      - name: Publicar estado pendiente tras validar la identidad
+        env:
+          FASE_ESTADO: pendiente
+          DEPLOYMENT_SHA: ${{ steps.identidad.outputs.commit_sha }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/registrar-estado-vercel.mjs
 
   verificar_despliegue:
     name: Comprobar funcionamiento del despliegue
@@ -96,7 +102,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      actions: read
       contents: read
       statuses: write
     steps:
@@ -105,30 +110,11 @@ jobs:
         with:
           ref: refs/heads/master
           persist-credentials: false
-      - name: Confirmar que master no avanzó durante la prueba
-        id: version_actual
+      - name: Publicar resultado final según comprobación y vigencia
         if: always()
         env:
+          FASE_ESTADO: final
           DEPLOYMENT_SHA: ${{ needs.identificar_despliegue.outputs.sha }}
           GITHUB_TOKEN: ${{ github.token }}
-        run: node scripts/verificar-head-master.mjs
-      # Esta acción publica `pending` en su fase principal y decide el estado
-      # definitivo en su fase post, al terminar todos los pasos del trabajo.
-      - name: Publicar estado oficial para los controles de despliegue de Vercel
-        if: always()
-        uses: vercel/repository-dispatch/actions/status@v1
-        with:
-          name: verificacion-despliegue-produccion
-          github_token: ${{ github.token }}
-      - name: Exigir comprobación remota y versión actual satisfactorias
-        if: always()
-        env:
           RESULTADO_COMPROBACION: ${{ needs.verificar_despliegue.result }}
-          RESULTADO_VERSION: ${{ steps.version_actual.conclusion }}
-        run: |
-          echo "Resultado de la comprobación remota: $RESULTADO_COMPROBACION"
-          echo "Resultado de la versión de master: $RESULTADO_VERSION"
-          if [ "$RESULTADO_COMPROBACION" != 'success' ] || [ "$RESULTADO_VERSION" != 'success' ]; then
-            echo '::error::No se publicará éxito porque la comprobación falló o el despliegue quedó obsoleto.'
-            exit 1
-          fi
+        run: node scripts/registrar-estado-vercel.mjs

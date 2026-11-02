@@ -30,6 +30,8 @@ jobs:
         run: npm ci
       - name: Analizar estilo del código
         run: npm run lint
+      - name: Probar decisiones del estado de despliegue
+        run: node --test scripts/registrar-estado-vercel.test.mjs
 
   comprobacion_tipos:
     name: Comprobación de tipos

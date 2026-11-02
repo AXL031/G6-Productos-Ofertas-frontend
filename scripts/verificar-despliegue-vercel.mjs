@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { readFile, appendFile } from "node:fs/promises";
 
 const PROJECT_NAME = "g6-productos-ofertas";
-const REPOSITORY = "Taller-SW-Web/G6-Productos-Ofertas-frontend";
 
 function fail(message) {
   throw new Error(message);
@@ -49,10 +48,6 @@ const projectId = requireValue(
   process.env.VERCEL_PROJECT_ID,
   "Falta la variable VERCEL_PROJECT_ID.",
 );
-const githubToken = requireValue(
-  process.env.GITHUB_TOKEN,
-  "No está disponible GITHUB_TOKEN para consultar la rama maestra.",
-);
 assert.match(deploymentId, /^dpl_[A-Za-z0-9]+$/, "El identificador de despliegue no tiene el formato esperado.");
 assert.match(teamId, /^team_[A-Za-z0-9]+$/, "VERCEL_TEAM_ID no tiene el formato esperado.");
 assert.match(projectId, /^prj_[A-Za-z0-9]+$/, "VERCEL_PROJECT_ID no tiene el formato esperado.");
@@ -94,17 +89,6 @@ assert.equal(metadata.githubCommitRef, "master", "La rama del despliegue no coin
 assert.match(metadata.githubCommitSha ?? "", /^[a-f0-9]{40}$/, "Vercel no devolvió un SHA completo válido.");
 assert.equal(metadata.githubCommitSha, payload.git.sha, "El SHA autenticado por Vercel no coincide con el evento.");
 assert.equal(metadata.githubCommitRef, payload.git.ref, "La rama autenticada por Vercel no coincide con el evento.");
-
-const latestMaster = await getJson(
-  `https://api.github.com/repos/${REPOSITORY}/commits/master`,
-  {
-    Authorization: `Bearer ${githubToken}`,
-    Accept: "application/vnd.github+json",
-    "X-GitHub-Api-Version": "2022-11-28",
-  },
-  "la versión actual de master en GitHub",
-);
-assert.equal(metadata.githubCommitSha, latestMaster.sha, "El despliegue corresponde a una versión obsoleta de master.");
 
 const deploymentHostname = requireValue(deployment.url, "Vercel no devolvió la URL del despliegue.");
 assert.match(
