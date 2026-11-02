@@ -40,15 +40,45 @@ describe("adaptador HTTP de Bulk", () => {
       return new Response(JSON.stringify({ batch_id: "b-1", status: "QUEUED", template_version: 2, correlation_id: "00000000-0000-4000-8000-000000000000" }), { status: 202, headers: { "content-type": "application/json" } });
     } };
     const repository = createHttpBulkRepository(transport, testSession);
-    const result = await repository.createImport(new File(["sku,nombre\nA-1,Uno"], "lote.csv", { type: "text/csv" }));
+    const result = await repository.createImport(new File(["sku,nombre\nA-1,Uno"], "lote.csv", { type: "text/csv" }), { correlationId: "11111111-1111-4111-8111-111111111111" });
     expect(result).toMatchObject({ batch_id: "b-1", status: "QUEUED" });
     expect(calls[0]?.path).toBe("/api/v1/carga-masiva/productos/importaciones");
     expect(calls[0]?.init.headers.Authorization).toBe("Bearer header.payload.signature");
+    expect(calls[0]?.init.headers["X-Correlation-Id"]).toBe("11111111-1111-4111-8111-111111111111");
     expect(calls[0]?.init.headers["Content-Type"]).toBeUndefined();
     expect(calls[0]?.init.body).toBeInstanceOf(FormData);
     const form = calls[0]?.init.body as FormData;
     expect((form.get("archivo") as File).name).toBe("lote.csv");
     expect(form.get("template_version")).toBe("2");
+  });
+
+  it("conserva correlación al reintentar la misma intención y usa otra para una operación nueva", async () => {
+    const coordinator = new AdmissionCoordinator<File>();
+    const firstFile = new File(["a"], "primera.csv");
+    coordinator.select(firstFile);
+    const first = coordinator.begin(firstFile)!;
+    coordinator.finish(first, "uncertain");
+    const retry = coordinator.begin(firstFile, true)!;
+    expect(retry.correlationId).toBe(first.correlationId);
+    coordinator.finish(retry, "accepted");
+    const secondFile = new File(["b"], "segunda.csv");
+    coordinator.select(secondFile);
+    const nextOperation = coordinator.begin(secondFile);
+    expect(nextOperation?.correlationId).not.toBe(first.correlationId);
+    expect(nextOperation?.correlationId).toMatch(/^[0-9a-f-]{36}$/i);
+  });
+
+  it("valida que MIME y nombre alternativo correspondan al formato XLSX del trabajo", async () => {
+    const repository = createHttpBulkRepository({ request: async (path) => {
+      if (path.endsWith("/archivo")) return new Response("xlsx", { status: 200, headers: { "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" } });
+      return new Response(JSON.stringify({ export_id: "33333333-3333-4333-8333-333333333333", status: "COMPLETED", formato: "XLSX", created_at: "2026-11-02T12:00:00.000Z" }), { status: 200, headers: { "content-type": "application/json" } });
+    } }, testSession);
+    const download = await repository.getExportFile("33333333-3333-4333-8333-333333333333");
+    expect(download?.fileName).toBe("exportacion-33333333-3333-4333-8333-333333333333.xlsx");
+    const invalidMime = createHttpBulkRepository({ request: async (path) => path.endsWith("/archivo")
+      ? new Response("csv", { status: 200, headers: { "content-type": "text/csv" } })
+      : new Response(JSON.stringify({ export_id: "33333333-3333-4333-8333-333333333333", status: "COMPLETED", formato: "XLSX", created_at: "2026-11-02T12:00:00.000Z" }), { status: 200, headers: { "content-type": "application/json" } }) }, testSession);
+    await expect(invalidMime.getExportFile("33333333-3333-4333-8333-333333333333")).rejects.toThrow("MIME");
   });
 
   it("descarga una plantilla con nombre seguro y mapea filas y dominios contractuales", async () => {

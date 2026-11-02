@@ -122,7 +122,7 @@ export function createBulkFetchTransport(origin: string, fetcher: typeof fetch =
 }
 
 export function createHttpBulkRepository(transport: BulkHttpTransport, session: AuthSession): BulkRepository {
-  async function send(path: string, method: HttpInit["method"], signal?: AbortSignal, body?: BodyInit, json = false): Promise<Response> {
+  async function send(path: string, method: HttpInit["method"], signal?: AbortSignal, body?: BodyInit, json = false, correlationId: string = crypto.randomUUID()): Promise<Response> {
     const bounded = signal ? AbortSignal.any([signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000);
     bounded.throwIfAborted();
     let token: string | null;
@@ -131,7 +131,7 @@ export function createHttpBulkRepository(transport: BulkHttpTransport, session: 
     if (!token || /[\r\n]/.test(token)) throw new BulkRepositoryError("Inicia sesión para usar la carga masiva en modo API.", "configuration");
     const request = (accessToken: string) => transport.request(path, {
       method, signal: bounded,
-      headers: { Accept: "application/json, text/csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", Authorization: `Bearer ${accessToken}`, "X-Correlation-Id": crypto.randomUUID(), ...(json ? { "Content-Type": "application/json" } : {}) },
+      headers: { Accept: "application/json, text/csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", Authorization: `Bearer ${accessToken}`, "X-Correlation-Id": correlationId, ...(json ? { "Content-Type": "application/json" } : {}) },
       ...(body === undefined ? {} : { body }),
     });
     let response: Response;
@@ -166,17 +166,18 @@ export function createHttpBulkRepository(transport: BulkHttpTransport, session: 
     try { signal?.throwIfAborted(); return await response.json(); }
     catch (error) { if (error instanceof BulkRepositoryError || signal?.aborted) throw error; return invalid("El servicio devolvió JSON ilegible."); }
   }
-  async function download(path: string, fallback: string, signal?: AbortSignal): Promise<DownloadResource> {
+  async function download(path: string, fallback: string, signal?: AbortSignal, expectedMime?: string): Promise<DownloadResource> {
     const response = await send(path, "GET", signal);
     const type = response.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase();
     if (response.status !== 200 || (type !== "text/csv" && type !== xlsxMime)) invalid("El servicio no entregó un archivo CSV o XLSX válido.");
+    if (expectedMime && type !== expectedMime) invalid("El tipo MIME del archivo no coincide con el formato solicitado.");
     return { blob: await response.blob(), fileName: safeFileName(response.headers.get("content-disposition"), fallback) };
   }
   return {
     async getTemplate(format, signal) { return download(`${root}/plantilla?formato=${format}`, `plantilla-productos.${format.toLowerCase()}`, signal); },
-    async createImport(file, _summary, signal) {
+    async createImport(file, summary, signal) {
       const form = new FormData(); form.append("archivo", file); form.append("template_version", "2");
-      return mapAccepted(await json(await send(`${root}/importaciones`, "POST", signal, form), 202, signal));
+      return mapAccepted(await json(await send(`${root}/importaciones`, "POST", signal, form, false, summary?.correlationId), 202, signal));
     },
     async getImport(batchId, signal) {
       try { return mapBatch(await json(await send(`${root}/importaciones/${encodeURIComponent(batchId)}`, "GET", signal), 200, signal)); }
@@ -191,6 +192,13 @@ export function createHttpBulkRepository(transport: BulkHttpTransport, session: 
       try { return mapExport(await json(await send(`${root}/exportaciones/${encodeURIComponent(exportId)}`, "GET", signal), 200, signal)); }
       catch (error) { if (error instanceof BulkRepositoryError && error.status === 404 && error.code === "LOTE_NO_ENCONTRADO") return null; throw error; }
     },
-    async getExportFile(exportId, signal) { return download(`${root}/exportaciones/${encodeURIComponent(exportId)}/archivo`, `exportacion-${exportId}.csv`, signal); },
+    async getExportFile(exportId, signal) {
+      const job = await this.getExport(exportId, signal);
+      if (!job) return null;
+      const expectedMime = job.format === "XLSX" ? xlsxMime : "text/csv";
+      const extension = job.format.toLowerCase();
+      const resource = await download(`${root}/exportaciones/${encodeURIComponent(exportId)}/archivo`, `exportacion-${exportId}.${extension}`, signal, expectedMime);
+      return resource;
+    },
   };
 }
