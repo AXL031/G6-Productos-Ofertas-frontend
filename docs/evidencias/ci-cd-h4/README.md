@@ -8,13 +8,13 @@
 
 **Base integrada:** `origin/master` en `726fba0a2ceaaf4a3c60052fb1ff4cbf35139f6d`
 
-**SHA de la configuración medida:** `a0d66f67ae1457d7b46b9580a47d6047680c9004`
+**SHA de la distribución ponderada medida:** `664b8d32910bb745164fc3047aab23da9ab532cb`
 
-**Último run completo medido:** [41411709832](https://github.com/Taller-SW-Web/G6-Productos-Ofertas-frontend/actions/runs/41411709832), éxito, 15:17 de duración total
+**Último run completo medido:** [41415037004](https://github.com/Taller-SW-Web/G6-Productos-Ofertas-frontend/actions/runs/41415037004), éxito, 10:08 de duración total
 
 **Estado de Vercel:** control implementado y probado mediante pruebas unitarias; validación del estado remoto y de Production pendiente de credenciales y deployment real.
 
-Esta evidencia distingue la línea base histórica, la medición de cuatro fragmentos y la nueva distribución ponderada. La distribución ponderada se seleccionó a partir de los archivos lentos observados en el run 41411709832. Su duración aún no se ha medido en GitHub Actions; se actualizará cuando termine el primer run completo con esos manifiestos.
+Esta evidencia distingue la línea base histórica, la medición de cuatro fragmentos automáticos y la ejecución completa de los nuevos manifiestos ponderados.
 
 ## Medición antes y después
 
@@ -22,9 +22,9 @@ Esta evidencia distingue la línea base histórica, la medición de cuatro fragm
 |---|---|---|---:|---:|---:|---:|
 | Línea base: tres fragmentos automáticos | `3edd364f3ca86c935f4541e4a5b063a7b6495e79` | [41387235904](https://github.com/Taller-SW-Web/G6-Productos-Ofertas-frontend/actions/runs/41387235904) | 3 | 515 aprobados | 14:04 | 44,30 |
 | Cuatro fragmentos automáticos; incluye cambios de master y 41 casos más | `a0d66f67ae1457d7b46b9580a47d6047680c9004` | [41411709832](https://github.com/Taller-SW-Web/G6-Productos-Ofertas-frontend/actions/runs/41411709832) | 4 | 550 aprobados, 6 omitidos por anotaciones de prueba | 15:17 | 47,28 |
-| Cuatro fragmentos ponderados por archivo | Pendiente | Pendiente | 4 | 556 enumerados; resultado remoto pendiente | Pendiente | Pendiente |
+| Cuatro fragmentos ponderados por archivo | `664b8d32910bb745164fc3047aab23da9ab532cb` | [41415037004](https://github.com/Taller-SW-Web/G6-Productos-Ofertas-frontend/actions/runs/41415037004) | 4 | 550 aprobados, 6 omitidos por anotaciones de prueba | 10:08 | 47,22 |
 
-La comparación entre los dos primeros runs no es equivalente: el segundo integra los cambios recientes de Catálogo desde `master` y enumera 556 casos, 41 más que los 515 aprobados en el run de referencia. El run 41411709832 tardó 1:13 más de extremo a extremo, aunque no puede atribuirse ese cambio únicamente a la configuración de fragmentos. No se presenta como mejora de duración.
+El run ponderado redujo 5:09 el tiempo frente al run con cuatro fragmentos automáticos (15:17 → 10:08), con el mismo SHA funcional, los mismos 556 casos y una suma de minutos de ejecutor similar (47,28 → 47,22). Frente a la línea base, duró 3:56 menos pese a incluir 41 casos enumerados adicionales. Esta última comparación no aísla el efecto de la configuración, porque `master` añadió pruebas de Catálogo.
 
 ### Duraciones de los fragmentos
 
@@ -37,22 +37,26 @@ La comparación entre los dos primeros runs no es equivalente: el segundo integr
 | 41411709832 | 2 de 4 | 8:08 | 0:43 | 0:16 | 6:58 |
 | 41411709832 | 3 de 4 | 3:54 | 0:25 | 0:12 | 3:09 |
 | 41411709832 | 4 de 4 | 14:58 | 0:43 | 0:33 | 13:29 |
+| 41415037004 | 1 de 4, ponderado | 9:08 | 0:43 | 0:17 | 7:59 |
+| 41415037004 | 2 de 4, ponderado | 8:45 | 0:41 | 0:17 | 7:35 |
+| 41415037004 | 3 de 4, ponderado | 8:18 | 0:35 | 0:19 | 7:11 |
+| 41415037004 | 4 de 4, ponderado | 9:43 | 0:45 | 0:19 | 8:29 |
 
 El fragmento 4 automático del segundo run concentró archivos costosos y dominó el tiempo total. En sus resultados, los archivos de mayor duración acumulada fueron `transversal-integration.spec.ts` (174,8 s), `taxonomy-mk010.spec.ts` (137,8 s), `g6-mock-regressions.spec.ts` (134,1 s), `taxonomy-mk009.spec.ts` (95,1 s), `price-audit.spec.ts` (88,7 s), `taxonomy-ui.spec.ts` (83,5 s), `inventory.spec.ts` (71,2 s), `pricing-workflows.spec.ts` (66,6 s) y `recommendations.spec.ts` (66,1 s).
 
-Los nuevos manifiestos `scripts/e2e-fragmentos/parte-1.txt` a `parte-4.txt` asignan archivos completos una sola vez mediante una distribución voraz por duración acumulada registrada por Playwright. Si varios archivos tienen duración cero, el número de pruebas actúa solo como desempate mínimo. El cálculo distribuye las duraciones registradas en aproximadamente 7:30 por parte; es una estimación, no un resultado de ejecución. Se mantienen cuatro trabajos, un trabajador por trabajo y `fullyParallel: false`.
+Los manifiestos `scripts/e2e-fragmentos/parte-1.txt` a `parte-4.txt` asignan archivos completos una sola vez mediante una distribución voraz por duración acumulada registrada por Playwright. Si varios archivos tienen duración cero, el número de pruebas actúa solo como desempate mínimo. Playwright midió 7:59, 7:35, 7:11 y 8:29 en los pasos E2E; el trabajo más largo duró 9:43 incluyendo preparación y subida de evidencia. Se mantienen cuatro trabajos, un trabajador por trabajo y `fullyParallel: false`.
 
 Cada ejecución vuelve a enumerar la suite completa. Si Playwright no logra enumerarla, el trabajo falla y no puede aprobar cobertura incompleta. Si los manifiestos tienen archivos ausentes, adicionales o duplicados, cada fragmento usa la distribución automática completa de Playwright. Los nuevos casos dentro de un archivo existente se incluyen automáticamente porque el manifiesto selecciona archivos completos. Los archivos de pruebas nunca se dividen entre fragmentos.
 
 ### Coste de ejecutores y demás comprobaciones
 
-El run 41387235904 utilizó 14 trabajos y aproximadamente 44,30 minutos de ejecutor sumados. El run 41411709832 utilizó 16 trabajos y aproximadamente 47,28 minutos: el cuarto entorno E2E añade una instalación separada y el clasificador es un trabajo nuevo. En el run 41411709832, `npm ci` duró 25–53 s por trabajo E2E y Chromium 12–33 s. Las otras instalaciones `npm ci` permanecen independientes; `actions/setup-node` conserva su caché de npm y todas usan `npm ci`.
+El run 41387235904 utilizó 14 trabajos y aproximadamente 44,30 minutos de ejecutor sumados. Los runs 41411709832 y 41415037004 usaron 16 trabajos y 47,28 y 47,22 minutos, respectivamente. En el run ponderado, `npm ci` duró 35–45 s por trabajo E2E y Chromium 17–19 s. Las otras instalaciones `npm ci` permanecen independientes; `actions/setup-node` conserva su caché de npm y todas usan `npm ci`.
 
 No se añadió caché de `node_modules` ni de Chromium: la instalación observada fue más pequeña que la variación entre fragmentos y no se midió una ganancia que justifique una caché adicional. Las compilaciones de demostración se comparten con la verificación local por artefacto; la compilación API conserva su propio modo y verificación. No se reutilizan artefactos de código entre trabajos privilegiados.
 
 ### Cobertura y resultado del run 41411709832
 
-- Playwright enumeró 556 casos en 55 archivos. El run remoto registró 550 aprobados y 6 omitidos por anotaciones existentes; no hubo fallos. No se eliminaron pruebas ni se modificaron aserciones.
+- Playwright enumeró y ejecutó 556 casos en 55 archivos. El run remoto registró 550 aprobados y 6 omitidos por anotaciones existentes; no hubo fallos. No se eliminaron pruebas ni se modificaron aserciones.
 - Las cuatro partes finalizaron correctamente; los resultados por parte fueron 142 aprobados, 136 aprobados, 148 aprobados y 6 omitidos más 124 aprobados, respectivamente.
 - Todos los trabajos de estilo, tipos, pruebas unitarias, compilaciones, smoke, verificación local y el agregador `Validación integral de integración continua` terminaron en `success`.
 - El conjunto unitario integrado ejecutó 370 pruebas; las cuatro particiones reportaron 56, 51, 108 y 155 aprobadas. La prueba rápida de interfaz aprobó 8.
@@ -80,8 +84,8 @@ Validaciones ejecutadas localmente sobre los cambios de esta rama:
 | `npx playwright test --list --test-list` en los cuatro manifiestos | Correcto: 176 + 122 + 138 + 120 = 556 casos en 55 archivos, sin solapamientos; no ejecuta la suite. |
 | Smoke E2E local con un trabajador | Correcto: 8 pruebas; resultado heredado de la verificación local del SHA `a0d66f6`. |
 | YAML, permisos y agregador | Correcto en el run 41411709832. |
-| `git diff --check` | Pendiente de repetir tras el último cambio documental. |
-| Run completo con distribución ponderada | Pendiente. |
+| `git diff --check` | Correcto en el commit de implementación; se repetirá tras la actualización de este informe. |
+| Run completo con distribución ponderada | Correcto: run 41415037004; todos los 16 trabajos y el agregador terminaron en `success`. |
 | Estado GitHub contra deployment Vercel real | Pendiente; no se ejecutó por no usar credenciales ni desplegar. |
 
 La prueba unitaria del publicador no sustituye la evidencia de la API remota. Tampoco se presenta la vista previa local o metadata de Vercel como prueba de producción.
