@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockBulkRepository } from "../src/features/bulk/adapters/mockBulkRepository";
+import { createHttpBulkRepository, type BulkHttpTransport } from "../src/features/bulk/adapters/httpBulkRepository";
 import { BulkRepositoryError, createBulkRepository } from "../src/features/bulk/services/bulkService";
 import { canRequestImportReport } from "../src/features/bulk/services/bulkRepository";
 import { canMockProvideImportReport } from "../src/features/bulk/services/reportAvailability";
@@ -24,6 +25,58 @@ import {
   parsePdfStructure,
 } from "../src/features/price-audit/adapters/mockAuditRepository";
 import type { AuditEntry, AuditFilters } from "../src/features/price-audit/services/auditRepository";
+
+const testSession = {
+  getAccessToken: async () => "header.payload.signature",
+  refreshAccessToken: async () => null,
+  invalidateAccessToken: () => undefined,
+};
+
+describe("adaptador HTTP de Bulk", () => {
+  it("usa rutas del contrato, bearer y multipart sin fabricar Content-Type", async () => {
+    const calls: Array<{ path: string; init: Parameters<BulkHttpTransport["request"]>[1] }> = [];
+    const transport: BulkHttpTransport = { request: async (path, init) => {
+      calls.push({ path, init });
+      return new Response(JSON.stringify({ batch_id: "b-1", status: "QUEUED", template_version: 2, correlation_id: "00000000-0000-4000-8000-000000000000" }), { status: 202, headers: { "content-type": "application/json" } });
+    } };
+    const repository = createHttpBulkRepository(transport, testSession);
+    const result = await repository.createImport(new File(["sku,nombre\nA-1,Uno"], "lote.csv", { type: "text/csv" }));
+    expect(result).toMatchObject({ batch_id: "b-1", status: "QUEUED" });
+    expect(calls[0]?.path).toBe("/api/v1/carga-masiva/productos/importaciones");
+    expect(calls[0]?.init.headers.Authorization).toBe("Bearer header.payload.signature");
+    expect(calls[0]?.init.headers["Content-Type"]).toBeUndefined();
+    expect(calls[0]?.init.body).toBeInstanceOf(FormData);
+    const form = calls[0]?.init.body as FormData;
+    expect((form.get("archivo") as File).name).toBe("lote.csv");
+    expect(form.get("template_version")).toBe("2");
+  });
+
+  it("descarga una plantilla con nombre seguro y mapea filas y dominios contractuales", async () => {
+    const transport: BulkHttpTransport = { request: async (path) => path.includes("plantilla")
+      ? new Response("sku,nombre", { status: 200, headers: { "content-type": "text/csv", "content-disposition": 'attachment; filename="catalogo.csv"' } })
+      : new Response(JSON.stringify({ batch_id: "b-2", status: "COMPLETED", total_rows: 1, completed_rows: 0, failed_rows: 1, needs_reconciliation: true, rows: [{ row_id: "4", status: "FAILED", applied_domains: ["CATALOGO"], failed_domain: "PRICING", needs_reconciliation: true, steps: [{ dominio: "PRICING", status: "FAILED", code: "PRECIO_INVALIDO", detail: "Revisar" }] }] }), { status: 200, headers: { "content-type": "application/json" } }) };
+    const repository = createHttpBulkRepository(transport, testSession);
+    const template = await repository.getTemplate("CSV");
+    expect(template?.fileName).toBe("catalogo.csv");
+    expect(await template?.blob.text()).toBe("sku,nombre");
+    const batch = await repository.getImport("b-2");
+    expect(batch?.rows?.[0]?.steps[0]).toMatchObject({ domain: "PRICING", status: "FAILED", code: "PRECIO_INVALIDO" });
+  });
+
+  it.each([401, 403, 404, 409, 503])("expone el error HTTP %i sin fallback", async (status) => {
+    const transport: BulkHttpTransport = { request: async () => new Response(JSON.stringify({ status, code: "ERROR_HTTP" }), { status, headers: { "content-type": "application/problem+json" } }) };
+    const repository = createHttpBulkRepository(transport, testSession);
+    await expect(repository.createExport("CSV")).rejects.toThrow(`HTTP ${status}`);
+  });
+
+  it("selecciona mock solo para mock y exige provider API en modo api", () => {
+    expect(createBulkRepository("mock")).toBe(mockBulkRepository);
+    const api = createHttpBulkRepository({ request: async () => new Response("", { status: 503 }) }, testSession);
+    expect(createBulkRepository("api", { api })).toBe(api);
+    expect(isBulkProviderConfigured("api", api)).toBe(true);
+    expect(isBulkProviderConfigured("api", null)).toBe(false);
+  });
+});
 
 function fileWithBytes(name: string, bytes: Uint8Array) {
   const copy = new Uint8Array(bytes.byteLength);
