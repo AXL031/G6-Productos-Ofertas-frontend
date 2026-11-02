@@ -55,7 +55,7 @@ export function createCatalogPromotionRepository({
                   "No se pudo completar la consulta de variantes de Catálogo.",
                 );
             }
-          } else {
+          } else if (product.skuBase !== null) {
             // Catalog explicitly defines skuBase as the sellable SKU for simple products.
             skus.push({ sku: product.skuBase, label: product.name, active });
           }

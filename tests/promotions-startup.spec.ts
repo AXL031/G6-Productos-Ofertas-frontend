@@ -24,8 +24,17 @@ for (const [name, mode, gateway, security, integrated] of [
 ] as const) {
   test(`arranque real: ${name} conserva módulos independientes`, async ({ page }) => {
     const errors: string[] = [], calls: string[] = [];
+    const catalogHttpEnabled = mode === "api" && gateway?.startsWith("https://");
     page.on("pageerror", error => errors.push(error.message));
     page.on("request", request => { if (request.url().includes("/api/v1")) calls.push(request.url()); });
+    // Catalog now uses a valid Gateway even without G7. Keep this startup test
+    // isolated: reject its reads explicitly, never contact an external service.
+    await page.route("https://gateway.example.test/api/v1/**", async route => {
+      expect(route.request().method()).toBe("GET");
+      expect(route.request().headers()).not.toHaveProperty("authorization");
+      await route.fulfill({ status: 503, contentType: "application/problem+json",
+        headers: { "Access-Control-Allow-Origin": "*" }, body: JSON.stringify({ code: "SERVICIO_NO_DISPONIBLE" }) });
+    });
     await page.route("**/src/main.tsx*", async route => {
       const response = await route.fetch();
       let body = await response.text();
@@ -45,6 +54,7 @@ for (const [name, mode, gateway, security, integrated] of [
       await expect(page.locator("main")).toBeVisible();
       await expect(page.getByRole("heading", { name: "Iniciar sesión", exact: true })).toHaveCount(0);
       if (mode === "mock") await expect(page.getByRole("heading", { name: label, exact: true })).toBeVisible();
+      if (catalogHttpEnabled && path === "/productos") await expect(page.getByText(/503, SERVICIO_NO_DISPONIBLE/).first()).toBeVisible();
     }
     await page.getByRole("link", { name: "Cupones de descuento", exact: true }).click();
     await expect(page).toHaveURL(/\/cupones$/);
@@ -54,7 +64,14 @@ for (const [name, mode, gateway, security, integrated] of [
       await expect(page.getByRole("alert", { name: "Función no disponible", exact: true })).toBeVisible();
       await expect(page.getByRole("table")).toHaveCount(0);
     }
-    expect(calls).toEqual([]);
+    if (catalogHttpEnabled) {
+      expect(calls.length).toBeGreaterThan(0);
+      for (const call of calls) {
+        const url = new URL(call);
+        expect(url.origin).toBe(gateway);
+        expect(["/api/v1/productos", "/api/v1/categorias", "/api/v1/tipos-producto"]).toContain(url.pathname);
+      }
+    } else expect(calls).toEqual([]);
     expect(errors).toEqual([]);
   });
 }
