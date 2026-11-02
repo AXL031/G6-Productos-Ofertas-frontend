@@ -1,8 +1,8 @@
 # Evidencia de CI/CD — Hito 4
 
-**Fecha:** 2026-11-01  
-**Rama:** `ci/atomizar-validaciones-y-verificar-despliegue-vercel`  
-**Base:** `origin/master` en `e171a20836042fcf95b526c668e0c4c2f6832d96`  
+**Fecha:** 2026-11-01
+**Rama:** `ci/atomizar-validaciones-y-verificar-despliegue-vercel`
+**Base:** `origin/master` en `e171a20836042fcf95b526c668e0c4c2f6832d96`
 **Solicitud de incorporación:** [PR 63, en borrador](https://github.com/Taller-SW-Web/G6-Productos-Ofertas-frontend/pull/63).
 
 **SHA probado:** `cac1a3dfeb56ee4d647aceb49da47ce848844239`.
@@ -132,4 +132,3 @@ incorporarse el archivo a la rama por defecto; esta PR permanece en borrador.
    operación normal.
 5. Después de una promoción, registrar SHA → despliegue → alias → prueba rápida
    con el enlace del flujo real. Un estado `READY` o un HTTP 200 de `/` no bastan.
-
