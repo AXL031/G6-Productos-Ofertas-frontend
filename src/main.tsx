@@ -16,6 +16,9 @@ import { resolveDataMode } from "./app/config/dataMode";
 import { DataModeContext } from "./app/config/DataModeContext";
 import { PromotionApiContext } from "./app/config/PromotionApiContext";
 import { PromotionSessionContext } from "./app/config/PromotionSessionContext";
+import { CatalogServicesContext } from "./features/catalog/services/CatalogServicesContext";
+import { getCatalogServices } from "./features/catalog/services/catalogServices";
+import { createOptionalCatalogHttpServices } from "./features/catalog/services/catalogHttpRuntime";
 import { createCombosRuntime } from "./features/combos/services/combosService";
 import { CombosProvider } from "./features/combos/components/CombosProvider";
 
@@ -37,6 +40,7 @@ async function start() {
         ).createOptionalPromotionSessionRuntime(gatewayOrigin, securityApiBase)
       : null;
   const combosRuntime = await createCombosRuntime(mode, runtime);
+  const catalogServices = (mode === "api" ? createOptionalCatalogHttpServices(gatewayOrigin) : null) ?? getCatalogServices(mode);
   root.render(
     <StrictMode>
       <MantineProvider
@@ -45,19 +49,21 @@ async function start() {
         forceColorScheme="light"
       >
         <DataModeContext.Provider value={mode}>
-          <PricingProvider runtime={runtime}>
-            <PromotionSessionContext.Provider
-              value={promotions?.session ?? null}
-            >
-              <PromotionApiContext.Provider
-                value={promotions?.services ?? null}
+          <CatalogServicesContext.Provider value={catalogServices}>
+            <PricingProvider runtime={runtime}>
+              <PromotionSessionContext.Provider
+                value={promotions?.session ?? null}
               >
-                <CombosProvider mode={mode} runtime={combosRuntime}>
-                  <App />
-                </CombosProvider>
-              </PromotionApiContext.Provider>
-            </PromotionSessionContext.Provider>
-          </PricingProvider>
+                <PromotionApiContext.Provider
+                  value={promotions?.services ?? null}
+                >
+                  <CombosProvider mode={mode} runtime={combosRuntime}>
+                    <App />
+                  </CombosProvider>
+                </PromotionApiContext.Provider>
+              </PromotionSessionContext.Provider>
+            </PricingProvider>
+          </CatalogServicesContext.Provider>
         </DataModeContext.Provider>
       </MantineProvider>
     </StrictMode>,

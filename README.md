@@ -56,6 +56,23 @@ añade ese arnés a los controles obligatorios.
 
 ## Configuración de datos
 
+Catálogo/Variantes (#5/#6/#35) conecta sus adaptadores HTTP cuando `VITE_DATA_MODE=api`
+y `VITE_GATEWAY_ORIGIN` contiene un origen válido. Para este módulo G7 no es
+requisito de arranque: el transporte de fase 1 no envía JWT ni identidad ficticia.
+Eso no habilita una excepción de seguridad: Gateway y Backend conservan sus guards;
+las escrituras sin JWT requieren el entorno restringido aprobado por sus owners.
+Sin URL, configuración inválida o error HTTP, Catálogo falla explícitamente, sin mocks.
+El puerto `CatalogHttpTransport` permite conectar el cliente compartido de #45
+posteriormente sin modificar los DTO ni implementar sesión en esta feature.
+
+La integración es **parcial**: los GET comerciales no publican estado, versión ni
+perfil administrativo para editar borradores; una respuesta comercial no se convierte
+en ese modelo. La preparación usa su GET independiente. Taxonomía conserva como
+pendientes los roles identificadores y límites no publicados. Un `202` solo confirma
+admisión, y una escritura sin confirmación no se reintenta automáticamente.
+Matriz por operación, pruebas simuladas y pendientes reales:
+[integración Catálogo H4](docs/INTEGRACION_CATALOGO_H4.md).
+
 `VITE_DATA_MODE` es el único selector de modo de datos (ver [.env.example](.env.example)). Se selecciona una vez y se distribuye mediante `DataModeContext`. En modo `api`, Promotions permite configurar juntas las URLs públicas `VITE_GATEWAY_ORIGIN` (solo origen) y `VITE_G7_API_BASE` (base publicada de Seguridad, por ejemplo `https://seguridad.example.org/api/v1`). No son credenciales. HTTPS es obligatorio fuera de loopback; no se configuran tokens ni secretos en Vite.
 
 Si alguna URL de Promotions falta o es inválida, sus rutas muestran indisponibilidad explícita y los módulos independientes siguen arrancando. La integración HTTP solo se inicializa con ambas URLs válidas; en modo API nunca se habilitan mocks como fallback.
@@ -71,6 +88,8 @@ En desarrollo, la aplicación usa `mock` si la variable no está definida. Para 
 
 `api` no configura por sí solo una URL ni concede acceso. Con ambas URLs de integración, Promotions conecta su adaptador HTTP al cliente G7 de login/MFA/renovación/logout. Sin URLs conserva el bloqueo visible; una configuración incompleta falla al iniciar. Tokens, identidad y desafío permanecen solo en memoria: recargar exige login. El consumidor AMQP no se habilita desde el frontend. La sesión se prueba con fixtures HTTP explícitos; el recorrido por Gateway/PostgreSQL usa además un entorno descartable independiente. Ninguna de esas pruebas acredita G7 compartido, homologación ni despliegue. Detalles en [integración Promotions](docs/INTEGRACION_PROMOTIONS_GATEWAY.md).
 
+La demo interna de lectura G6 se habilita con `VITE_G6_READ_DEMO=true`, `VITE_DATA_MODE=api` y `VITE_GATEWAY_ORIGIN` explícito. Está aislada en `/demo/g6/productos`, `/demo/g6/productos/:id` y `/demo/g6/categorias`; las rutas administrativas conservan su router. Vercel no publica un proxy de `/api/v1/*`: el navegador consulta el origen configurado, sujeto a CORS y guards del Gateway. Pricing limita a tres las consultas simultáneas y cancela las pendientes al salir. Estado y reproducción: [correcciones de auditoría PR #40](docs/CORRECCIONES_PR40.md).
+
 ### Persistencia de la demostración
 
 En modo `mock` y con un navegador real, las escrituras confirmadas de la demostración se guardan en `localStorage` bajo el prefijo `g6-productos-ofertas:mock:v1:<dominio>`, un registro por dominio (`catalog`, `taxonomy`, `pricing`, `price-audit`, `inventory`, `combos`, `promotions`, `bulk`). Al recargar, cada repositorio restaura su dominio **antes** de responder la primera consulta; si no hay estado válido, usa las fixtures. Un estado inválido o de versión incompatible se descarta en lugar de aplicarse.
@@ -85,7 +104,7 @@ La tabla resume lo que muestran el código y la configuración de esta rama; la 
 
 | Área | Estado en el frontend |
 |---|---|
-| Productos y variantes/SKU | Pantallas y flujos de demostración mock. Los puertos permiten inyección; no hay provider HTTP configurado por defecto. |
+| Productos y variantes/SKU | Mock explícito o adaptadores HTTP por Gateway configurado. Integración administrativa parcial por campos/lecturas contractuales ausentes; errores visibles y sin fallback. Pruebas reales de fase 1 pendientes. |
 | Taxonomía (categorías, características, tipos, marcas y SEO) | Pantallas disponibles en mock. En `api`, `TaxonomyModeGate` bloquea estas rutas independientemente de los providers. Habilitar la integración requiere configurar los servicios/adapters y adaptar el gate; inyectar un provider por sí solo no desbloquea las pantallas. |
 | Precios y programaciones/importación | Flujos de demostración mock. El modo `api` requiere un adapter; la implementación predeterminada falla explícitamente, sin fallback. Las operaciones de archivo no acreditan procesamiento comercial de Backend. |
 | Auditoría de precios | Listado, detalle y exportación de demostración mock. Las ediciones confirmadas de Pricing incorporan asientos simulados por sesión de navegador; recargar conserva los asientos emitidos. El runtime permite inyección, pero no incluye provider API predeterminado. Los archivos disponibles son muestras. |
