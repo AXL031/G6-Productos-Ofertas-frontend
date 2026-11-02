@@ -14,6 +14,26 @@ permissions:
   contents: read
 
 jobs:
+  clasificar_cambios:
+    name: Clasificar alcance de cambios
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      clasificacion: ${{ steps.clasificacion.outputs.clasificacion }}
+    steps:
+      - name: Obtener código para comparar cambios
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Clasificar cambios con criterio documental estricto
+        id: clasificacion
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: node scripts/clasificar-cambios-ci.mjs
+
   revision_estilo:
     name: Revisión de estilo
     runs-on: ubuntu-latest
@@ -32,6 +52,8 @@ jobs:
         run: npm run lint
       - name: Probar decisiones del estado de despliegue
         run: node --test scripts/registrar-estado-vercel.test.mjs
+      - name: Probar clasificación segura de cambios
+        run: node --test scripts/clasificar-cambios-ci.test.mjs
 
   comprobacion_tipos:
     name: Comprobación de tipos
@@ -286,7 +308,12 @@ jobs:
           retention-days: 7
 
   pruebas_extremo_a_extremo:
-    name: Pruebas de extremo a extremo (parte ${{ matrix.parte }} de 3)
+    name: Pruebas de extremo a extremo (parte ${{ matrix.parte }} de 4)
+    needs: [clasificar_cambios]
+    if: >-
+      always() &&
+      (needs.clasificar_cambios.result != 'success' ||
+       needs.clasificar_cambios.outputs.clasificacion != 'solo_documentacion')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -295,7 +322,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        parte: [1, 2, 3]
+        parte: [1, 2, 3, 4]
     steps:
       - name: Obtener código
         uses: actions/checkout@v7.0.1
@@ -309,7 +336,7 @@ jobs:
       - name: Instalar Chromium para Playwright
         run: npx playwright install --with-deps chromium
       - name: Ejecutar pruebas de extremo a extremo
-        run: npx playwright test --shard=${{ matrix.parte }}/3 --workers=1 --reporter=blob
+        run: npx playwright test --shard=${{ matrix.parte }}/4 --workers=1 --reporter=blob
       - name: Conservar resultados de extremo a extremo
         if: always()
         uses: actions/upload-artifact@v7.0.2
@@ -328,6 +355,7 @@ jobs:
     if: always()
     needs:
       - revision_estilo
+      - clasificar_cambios
       - comprobacion_tipos
       - unitarias_combos
       - unitarias_carga_masiva
@@ -344,6 +372,8 @@ jobs:
       - name: Exigir éxito de todas las comprobaciones
         env:
           REVISION_ESTILO: ${{ needs.revision_estilo.result }}
+          CLASIFICADOR_RESULTADO: ${{ needs.clasificar_cambios.result }}
+          CLASIFICACION: ${{ needs.clasificar_cambios.outputs.clasificacion }}
           COMPROBACION_TIPOS: ${{ needs.comprobacion_tipos.result }}
           UNITARIAS_COMBOS: ${{ needs.unitarias_combos.result }}
           UNITARIAS_CARGA_MASIVA: ${{ needs.unitarias_carga_masiva.result }}
@@ -365,8 +395,7 @@ jobs:
             "Compilación - Datos de demostración:$COMPILACION_DEMOSTRACION" \
             "Compilación - Integración con API:$COMPILACION_API" \
             "Verificación de compilación local:$VERIFICACION_COMPILACION" \
-            "Pruebas rápidas de interfaz:$PRUEBAS_RAPIDAS" \
-            "Pruebas de extremo a extremo:$PRUEBAS_EXTREMO_A_EXTREMO"; do
+            "Pruebas rápidas de interfaz:$PRUEBAS_RAPIDAS"; do
             nombre="${resultado%%:*}"
             estado="${resultado#*:}"
             echo "$nombre: $estado"
@@ -375,4 +404,18 @@ jobs:
               exit 1
             fi
           done
+          resultado_e2e="$PRUEBAS_EXTREMO_A_EXTREMO"
+          if [ "$CLASIFICADOR_RESULTADO" = 'success' ] && [ "$CLASIFICACION" = 'solo_documentacion' ]; then
+            echo "Clasificación documental confirmada; pruebas E2E: $resultado_e2e"
+            if [ "$resultado_e2e" != 'success' ] && [ "$resultado_e2e" != 'skipped' ]; then
+              echo '::error::Las pruebas E2E documentales solo pueden aprobarse si pasaron o se omitieron deliberadamente.'
+              exit 1
+            fi
+          else
+            echo "Clasificación no concluyente o con cambios funcionales; pruebas E2E completas: $resultado_e2e"
+            if [ "$resultado_e2e" != 'success' ]; then
+              echo '::error::Una clasificación no documental exige que todas las pruebas E2E pasen.'
+              exit 1
+            fi
+          fi
           echo "Todas las comprobaciones obligatorias finalizaron correctamente."

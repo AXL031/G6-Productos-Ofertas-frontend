@@ -46,6 +46,7 @@ async function consultarShaMaster({ token, repositorio }) {
   });
   if (!response.ok) throw new Error(`La consulta de master respondió HTTP ${response.status}.`);
   const body = await response.json();
+  assert.match(body.sha ?? "", /^[a-f0-9]{40}$/, "GitHub no devolvió el SHA actual completo de master.");
   return body.sha;
 }
 

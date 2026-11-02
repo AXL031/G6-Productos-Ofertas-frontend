@@ -46,13 +46,11 @@ npm run build
 npm run preview
 ```
 
-`npm run preview` sirve `dist/` localmente; no publica ni despliega la aplicación. El flujo [Integración continua del frontend](.github/workflows/frontend.yml) separa revisión de estilo, tipos, pruebas unitarias por módulo, compilaciones de demostración y API, verificaciones de compilación/vista previa, pruebas rápidas y tres fragmentos de extremo a extremo. `Validación integral de integración continua` exige que todos los trabajos terminen correctamente. El flujo [Verificación de despliegues de Vercel](.github/workflows/verificacion-despliegue-vercel.yml) consulta y prueba la URL inmutable antes de la asignación del dominio cuando los controles de despliegue y sus secretos externos están configurados. Que un flujo exista no implica que haya corrido para un cambio concreto.
+`npm run preview` sirve `dist/` localmente; no publica ni despliega la aplicación. El flujo [Integración continua del frontend](.github/workflows/frontend.yml) separa clasificación de cambios, revisión de estilo, tipos, pruebas unitarias por módulo, compilaciones de demostración y API, verificaciones de compilación/vista previa, pruebas rápidas y cuatro fragmentos de extremo a extremo. `Validación integral de integración continua` es la única comprobación estable para proteger `master`; verifica los resultados y solo acepta pruebas E2E omitidas cuando el clasificador termina correctamente y todos los cambios son Markdown dentro de `docs/`. Si la clasificación falla, está vacía o incluye cualquier otro archivo, se ejecuta la suite completa.
 
-La integración continua separa las cuatro suites incluidas en `npm test` y
-ejecuta Playwright general en fragmentos, además de las pruebas rápidas. No
-invoca `test:ci` ni `test:e2e:pricing`. El arnés HTTP de Pricing se ejecuta por
-separado con respuestas simuladas, sin Gateway ni PostgreSQL real; esta tarea no
-añade ese arnés a los controles obligatorios.
+Playwright conserva `fullyParallel: false` y `retries: 0`. En CI, la suite completa se distribuye en cuatro fragmentos con un trabajador por fragmento; localmente se usan dos trabajadores por defecto. Cada prueba usa su contexto aislado de navegador, los casos dentro de cada archivo se ejecutan en serie y el servidor Vite se comparte. La suite completa permanece obligatoria para cambios funcionales, pruebas, dependencias y configuración. Las pruebas rápidas se ejecutan también por separado para informar sus fallos con prontitud. No se invoca `test:ci` ni `test:e2e:pricing`. El arnés HTTP de Pricing se ejecuta por separado con respuestas simuladas, sin Gateway ni PostgreSQL real.
+
+El flujo [Verificación de despliegues de Vercel](.github/workflows/verificacion-despliegue-vercel.yml) valida la identidad del despliegue con la API autenticada, publica el estado `verificacion-despliegue-produccion` mediante la API de estados de GitHub, comprueba la URL inmutable y marca el commit como satisfactorio solo si el smoke pasa y el SHA sigue siendo el HEAD de `master`. La integración nativa GitHub–Vercel conserva el despliegue. Que un flujo exista no implica que haya corrido para un cambio concreto ni acredita una verificación real de producción.
 
 ## Configuración de datos
 
