@@ -74,7 +74,7 @@ export function VariantFormFields({ form, parentProduct }: VariantFormFieldsProp
               </div>
               <Group gap="xs">
                 <Badge variant="outline" color="gray" size="sm">
-                  SKU Base: {parentProduct.skuBase}
+                  SKU Base: {parentProduct.skuBase ?? "Sin SKU base"}
                 </Badge>
                 <StatusBadge semantic="neutral">
                   {parentProduct.hasVariants ? "Con variantes" : "Simple"}

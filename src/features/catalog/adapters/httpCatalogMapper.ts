@@ -73,7 +73,7 @@ export function mapProduct(value: unknown, preparation: ProductPreparationView, 
     ...variants.filter(v => v.status === "ACTIVA").map(v => v.inventoryPreparationStatus)];
   const summary = statuses.every(s => s === "COMPLETED") ? "COMPLETED" : statuses.every(s => s === "PENDING") ? "PENDING"
     : statuses.includes("REJECTED") ? "REJECTED" : "PARTIAL";
-  return { id, name: string(dto.name), skuBase: string(dto.sku_base), hasVariants,
+  return { id, name: string(dto.name), skuBase: dto.sku_base == null ? null : string(dto.sku_base), hasVariants,
     categoryId: string(dto.categoria_id), categoryName: string(dto.categoria_id),
     typeId: string(dto.tipo_producto_id), typeName: string(dto.tipo_producto_id),
     brandId: string(dto.marca_id), brandName: string(dto.marca_id),

@@ -1,3 +1,5 @@
+import { createCatalogFetchTransport } from "./catalogHttp";
+
 export interface DemoCategory {
   id: string;
   name: string;
@@ -64,26 +66,51 @@ function product(value: unknown): DemoProduct {
   return {
     id: text(row.product_id),
     name: text(row.name),
-    sku: row.sku_base === null ? null : text(row.sku_base),
+    sku: row.sku_base == null ? null : text(row.sku_base),
     description: row.description == null ? "" : text(row.description),
     categoryId: text(row.categoria_id),
     images: row.images.map(imageUrl),
   };
 }
 
-/** Existing G6 operationIds only. Same-origin transport is proxied to Gateway;
+/** Existing G6 operationIds only. Explicit Gateway origin in deployed builds;
  * no browser credentials, Supabase access, automatic retries or mock fallback. */
-export function createDemoCatalogApi(fetcher: typeof fetch = fetch) {
+export function createDemoCatalogApi(fetcher: typeof fetch = fetch, origin = "") {
+  // Reuse the origin validator. Relative URLs remain useful for injected tests.
+  const transport = origin ? createCatalogFetchTransport(origin, fetcher) : null;
+  let activePrices = 0;
+  const waiting: (() => void)[] = [];
+  function priceSlot(signal?: AbortSignal): Promise<() => void> {
+    return new Promise((resolve, reject) => {
+      const abort = () => {
+        const index = waiting.indexOf(start);
+        if (index >= 0) waiting.splice(index, 1);
+        reject(signal?.reason ?? new DOMException("Consulta cancelada", "AbortError"));
+      };
+      const start = () => {
+        signal?.removeEventListener("abort", abort);
+        if (signal?.aborted) { abort(); return; }
+        activePrices++;
+        resolve(() => { activePrices--; waiting.shift()?.(); });
+      };
+      if (signal?.aborted) { abort(); return; }
+      if (activePrices < 3) start();
+      else { waiting.push(start); signal?.addEventListener("abort", abort, { once: true }); }
+    });
+  }
   async function get(path: string, signal?: AbortSignal): Promise<unknown> {
     const correlation = crypto.randomUUID();
     const timeout = AbortSignal.timeout(15000);
-    const response = await fetcher("/api/v1" + path, {
-      method: "GET",
-      credentials: "omit",
-      redirect: "error",
+    const options = {
+      method: "GET" as const,
+      credentials: "omit" as const,
+      redirect: "error" as const,
       headers: { accept: "application/json", "x-correlation-id": correlation },
       signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
-    });
+    };
+    const response = transport
+      ? await transport.request("/api/v1" + path, options)
+      : await fetcher("/api/v1" + path, options);
     const type = response.headers.get("content-type") ?? "";
     if (!response.ok) {
       let code = "SERVICIO_NO_DISPONIBLE";
@@ -158,31 +185,34 @@ export function createDemoCatalogApi(fetcher: typeof fetch = fetch) {
       );
     },
     async price(id: string, signal?: AbortSignal): Promise<DemoPrice> {
-      const row = record(
-        await get(`/precios/productos/${encodeURIComponent(id)}`, signal),
-      );
-      if (
-        row.product_id !== id ||
-        row.currency !== "PEN" ||
-        typeof row.precio_regular !== "number" ||
-        !Number.isFinite(row.precio_regular) ||
-        row.precio_regular <= 0 ||
-        (row.precio_oferta !== null &&
-          row.precio_oferta !== undefined &&
-          (typeof row.precio_oferta !== "number" ||
-            !Number.isFinite(row.precio_oferta) ||
-            row.precio_oferta <= 0 ||
-            row.precio_oferta > row.precio_regular))
-      )
-        throw new Error(
-          "Pricing no devolvió un precio válido y positivo en PEN.",
+      const release = await priceSlot(signal);
+      try {
+        const row = record(
+          await get(`/precios/productos/${encodeURIComponent(id)}`, signal),
         );
-      return {
-        regular: row.precio_regular,
-        offer: typeof row.precio_oferta === "number" ? row.precio_oferta : null,
-        currency: "PEN",
-      };
+        if (
+          row.product_id !== id ||
+          row.currency !== "PEN" ||
+          typeof row.precio_regular !== "number" ||
+          !Number.isFinite(row.precio_regular) ||
+          row.precio_regular <= 0 ||
+          (row.precio_oferta !== null &&
+            row.precio_oferta !== undefined &&
+            (typeof row.precio_oferta !== "number" ||
+              !Number.isFinite(row.precio_oferta) ||
+              row.precio_oferta <= 0 ||
+              row.precio_oferta > row.precio_regular))
+        )
+          throw new Error(
+            "Pricing no devolvió un precio válido y positivo en PEN.",
+          );
+        return {
+          regular: row.precio_regular,
+          offer: typeof row.precio_oferta === "number" ? row.precio_oferta : null,
+          currency: "PEN",
+        };
+      } finally { release(); }
     },
   };
 }
-export const demoCatalogApi = createDemoCatalogApi();
+export const demoCatalogApi = createDemoCatalogApi(fetch, import.meta.env?.VITE_GATEWAY_ORIGIN ?? "");

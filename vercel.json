@@ -6,10 +6,6 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/api/v1/:path*",
-      "destination": "https://g6-productos-ofertas.duckdns.org/api/v1/:path*"
-    },
-    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

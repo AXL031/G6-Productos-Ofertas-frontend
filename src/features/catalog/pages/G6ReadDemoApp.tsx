@@ -1,6 +1,5 @@
 import { useCallback } from "react";
 import {
-  BrowserRouter,
   Link,
   Navigate,
   Route,
@@ -139,7 +138,7 @@ function Products() {
         <Anchor
           c="var(--po-primaryHover)"
           component={Link}
-          to={`/productos/${encodeURIComponent(row.id)}`}
+          to={`/demo/g6/productos/${encodeURIComponent(row.id)}`}
           state={{ from: location.pathname + location.search }}
         >
           {row.name}
@@ -202,7 +201,7 @@ function Products() {
           value={productState}
           onChange={(value) => change("estado", value ?? "BORRADOR")}
         />
-        <Button variant="outline" component={Link} to="/categorias">
+        <Button variant="outline" component={Link} to="/demo/g6/categorias">
           Consultar categorías
         </Button>
       </Group>
@@ -242,9 +241,9 @@ function Detail() {
   const location = useLocation();
   const from: unknown = location.state?.from;
   const back =
-    typeof from === "string" && from.startsWith("/productos?")
+    typeof from === "string" && from.startsWith("/demo/g6/productos?")
       ? from
-      : "/productos";
+      : "/demo/g6/productos";
   const load = useCallback(
     async (signal: AbortSignal) => {
       const [product, categories] = await Promise.all([
@@ -320,7 +319,7 @@ function Categories() {
               <Anchor
                 c="var(--po-primaryHover)"
                 component={Link}
-                to={`/productos?categoriaId=${encodeURIComponent(row.id)}`}
+                to={`/demo/g6/productos?categoriaId=${encodeURIComponent(row.id)}`}
               >
                 {row.name}
               </Anchor>
@@ -354,7 +353,7 @@ function Categories() {
 }
 export function G6ReadDemoApp() {
   return (
-    <BrowserRouter>
+    <>
       <Container size="xl" py="xl">
         <Stack gap="xl">
           <Group justify="space-between">
@@ -364,25 +363,25 @@ export function G6ReadDemoApp() {
             </Badge>
           </Group>
           <Group component="nav" aria-label="Navegación de consulta">
-            <Anchor c="var(--po-primaryHover)" component={Link} to="/productos">
+            <Anchor c="var(--po-primaryHover)" component={Link} to="/demo/g6/productos">
               Productos
             </Anchor>
             <Anchor
               c="var(--po-primaryHover)"
               component={Link}
-              to="/categorias"
+              to="/demo/g6/categorias"
             >
               Categorías
             </Anchor>
           </Group>
           <Routes>
-            <Route path="/productos" element={<Products />} />
-            <Route path="/productos/:id" element={<Detail />} />
-            <Route path="/categorias" element={<Categories />} />
-            <Route path="*" element={<Navigate to="/productos" replace />} />
+            <Route path="productos" element={<Products />} />
+            <Route path="productos/:id" element={<Detail />} />
+            <Route path="categorias" element={<Categories />} />
+            <Route path="*" element={<Navigate to="/demo/g6/productos" replace />} />
           </Routes>
         </Stack>
       </Container>
-    </BrowserRouter>
+    </>
   );
 }

@@ -1,8 +1,44 @@
 import { expect, test } from "@playwright/test";
+import { readFileSync } from "node:fs";
 import {
   createDemoCatalogApi,
   DemoApiError,
 } from "../src/features/catalog/adapters/demoCatalogApi";
+
+test("Deploy: no existe rewrite externo de API y la demo apagada no ocupa rutas", async ({ page }) => {
+  const config = JSON.parse(readFileSync("vercel.json", "utf8"));
+  expect(config.rewrites).toEqual([{ source: "/(.*)", destination: "/index.html" }]);
+  await page.goto("/demo/g6/productos");
+  await expect(page.getByRole("heading", { name: "G6 · Productos y Ofertas" })).toHaveCount(0);
+  await expect(page.getByRole("navigation").first()).toBeVisible();
+});
+
+test("Pricing simulado: máximo tres consultas activas; cancelar cola no envía HTTP; 500 libera cupo sin retry", async () => {
+  const pending: (() => void)[] = [];
+  const paths: string[] = [];
+  let active = 0; let peak = 0;
+  const api = createDemoCatalogApi(async (input) => {
+    paths.push(String(input)); active++; peak = Math.max(peak, active);
+    await new Promise<void>(resolve => pending.push(resolve));
+    active--;
+    const id = String(input).split("/").at(-1);
+    return id === "fail" ? Response.json({ code: "ERROR_INTERNO" }, { status: 500, headers: { "content-type": "application/problem+json" } })
+      : Response.json({ product_id: id, precio_regular: 20, precio_oferta: null, currency: "PEN" });
+  });
+  const jobs = [api.price("a"), api.price("fail"), api.price("b"), api.price("c"), api.price("d")];
+  const queuedController = new AbortController();
+  const queued = api.price("never", queuedController.signal);
+  const rejected = expect(queued).rejects.toThrow(); queuedController.abort();
+  const settled = Promise.allSettled(jobs);
+  await expect.poll(() => paths.length).toBe(3);
+  pending.splice(0).forEach(resolve => resolve());
+  await expect.poll(() => paths.length).toBe(5);
+  pending.splice(0).forEach(resolve => resolve());
+  expect((await settled).filter(result => result.status === "fulfilled")).toHaveLength(4);
+  await rejected;
+  expect(peak).toBe(3); expect(paths.some(path => path.endsWith("never"))).toBe(false);
+  expect(paths.filter(path => path.endsWith("fail"))).toHaveLength(1);
+});
 
 test("adapter unit: uses the published read paths without credentials and maps real DTO fields", async () => {
   const requests: { path: string; options?: RequestInit }[] = [];

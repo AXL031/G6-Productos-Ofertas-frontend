@@ -205,7 +205,7 @@ export class MockCatalogRepository implements CatalogRepository {
           if (existingOp) {
             // 3. Si existe y el SKU, precio y producto coinciden con la operación guardada, devolver éxito sin crear otro producto.
             const productExists = this.products.some(
-              (p) => p.id === existingOp.productId && p.skuBase.toUpperCase() === existingOp.sku.toUpperCase(),
+              (p) => p.id === existingOp.productId && p.skuBase?.toUpperCase() === existingOp.sku.toUpperCase(),
             );
             const pricesMatch = Math.abs(existingOp.priceInitial - expectedPrice) < 0.001;
             const skusMatch = existingOp.sku.toUpperCase() === skuUpper;
@@ -223,7 +223,7 @@ export class MockCatalogRepository implements CatalogRepository {
 
         // 5. Si no existe, comprobar duplicación global de SKU.
         const existingInProducts = this.products.some(
-          (p) => p.skuBase.toUpperCase() === skuUpper,
+          (p) => p.skuBase?.toUpperCase() === skuUpper,
         );
         const existingInVariants = this.variants.some(
           (v) => v.sku.toUpperCase() === skuUpper,
@@ -450,7 +450,7 @@ export class MockCatalogRepository implements CatalogRepository {
       filtered = filtered.filter(
         (p) =>
           p.name.toLowerCase().includes(term) ||
-          p.skuBase.toLowerCase().includes(term) ||
+          p.skuBase?.toLowerCase().includes(term) ||
           p.description.toLowerCase().includes(term),
       );
     }
@@ -654,7 +654,7 @@ export class MockCatalogRepository implements CatalogRepository {
       throw new CatalogError("invalid_master", "Selecciona categoría, marca y tipo activos en Taxonomía.");
     }
     // Check after all awaits: concurrent creates share one global SKU namespace.
-    if (this.products.some(p => p.skuBase.toUpperCase() === payload.skuBase.trim().toUpperCase()) ||
+    if (this.products.some(p => p.skuBase?.toUpperCase() === payload.skuBase.trim().toUpperCase()) ||
       this.variants.some(v => v.sku.toUpperCase() === payload.skuBase.trim().toUpperCase())) {
       throw new CatalogError("duplicate_sku", `El SKU base "${payload.skuBase}" ya está en uso.`, { skuBase: "SKU base duplicado" });
     }
@@ -1240,7 +1240,7 @@ export class MockCatalogRepository implements CatalogRepository {
 
     // SKU global uniqueness check (CA-02)
     const existsSku = this.variants.some((v) => v.sku.toUpperCase() === assignedSku.toUpperCase()) ||
-      this.products.some(p => p.skuBase.toUpperCase() === assignedSku.toUpperCase());
+      this.products.some(p => p.skuBase?.toUpperCase() === assignedSku.toUpperCase());
     if (existsSku) {
       throw new CatalogError(
         "duplicate_sku",

@@ -1,5 +1,17 @@
 # Demo de consulta real — G6 Productos y Ofertas
 
+> Corrección de auditoría del 01/11/2026: las rutas y el proxy descritos en las
+> secciones históricas siguientes quedan reemplazados por este párrafo. La demo
+> vive en `/demo/g6/productos`, `/demo/g6/productos/:id` y `/demo/g6/categorias`.
+> Requiere `VITE_G6_READ_DEMO=true`, `VITE_DATA_MODE=api` y un
+> `VITE_GATEWAY_ORIGIN` explícito con CORS aprobado. Se retiraron el rewrite
+> externo incondicional de Vercel y el proxy Vite con destino público implícito.
+> El resto de las rutas se conserva con la demo activada. Pricing tiene una cola
+> cancelable de máximo tres solicitudes activas, sin retry ni caché de precios.
+> La evidencia histórica de 500 se conserva. La nueva comprobación real obtuvo
+> categorías 200, productos 400/VALIDACION y Pricing 503; el E2E real sigue pendiente.
+> Ver [correcciones PR #40](CORRECCIONES_PR40.md).
+
 Tarea aprobada el 2026-10-17, rama existente `poma`, frontend PR #40;
 backend PR #125. Alcance: S01/S04 de Catálogo adaptados a consulta interna,
 categorías y precio base. No hay pantalla ni integración de Marketplace.

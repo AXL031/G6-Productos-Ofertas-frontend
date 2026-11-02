@@ -124,7 +124,7 @@ export function ProductDetailPage({ initialDialog }: ProductDetailPageProps) {
     <Stack gap="xl">
       <PageHeader
         title={p.name}
-        description={`SKU Base: ${p.skuBase} · Modelo: ${p.hasVariants ? "Con variantes" : "Simple"}`}
+        description={`SKU Base: ${p.skuBase ?? "Sin SKU base"} · Modelo: ${p.hasVariants ? "Con variantes" : "Simple"}`}
         breadcrumbs={[
           { label: "Inicio", to: "/precios" },
           { label: "Catálogo", to: "/productos" },
@@ -233,7 +233,7 @@ export function ProductDetailPage({ initialDialog }: ProductDetailPageProps) {
                       SKU Base
                     </Text>
                     <Text size="sm" ff="monospace" fw={600}>
-                      {p.skuBase}
+                      {p.skuBase ?? "Sin SKU base"}
                     </Text>
                   </div>
                   <div>

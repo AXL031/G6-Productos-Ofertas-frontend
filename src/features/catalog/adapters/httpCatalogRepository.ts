@@ -2,7 +2,7 @@ import { CatalogError, type CatalogRepository, type ProductCreatePayload, type P
 import { array, blockedCatalog, choice, createCatalogHttp, encoded, integer, object, string, type CatalogHttpTransport } from "./catalogHttp";
 import { mapPreparation, mapProduct, mapVariant, requestAttributes, requestPhysical, type CatalogAttributeMetadata } from "./httpCatalogMapper";
 
-/** OpenAPI 0.6.0-rc.1, Docs 599c34f. Commercial GETs cannot become admin DTOs. */
+/** Revalidado con OpenAPI 0.6.0-rc.2, Docs 5124eea. Commercial GETs cannot become admin DTOs. */
 export function createHttpCatalogRepository(transport: CatalogHttpTransport): CatalogRepository {
   const request = createCatalogHttp(transport);
   const productPath = (id: string) => `/productos/${encoded(id)}`;

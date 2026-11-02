@@ -87,7 +87,7 @@ En desarrollo, la aplicación usa `mock` si la variable no está definida. Para 
 
 `api` no configura por sí solo una URL ni concede acceso. Con ambas URLs de integración, Promotions conecta su adaptador HTTP al cliente G7 de login/MFA/renovación/logout. Sin URLs conserva el bloqueo visible; una configuración incompleta falla al iniciar. Tokens, identidad y desafío permanecen solo en memoria: recargar exige login. El consumidor AMQP no se habilita desde el frontend. La sesión se prueba con fixtures HTTP explícitos; el recorrido por Gateway/PostgreSQL usa además un entorno descartable independiente. Ninguna de esas pruebas acredita G7 compartido, homologación ni despliegue. Detalles en [integración Promotions](docs/INTEGRACION_PROMOTIONS_GATEWAY.md).
 
-La demo interna de lectura G6 de productos, categorías y precios se conserva como ruta de demostración protegida por `VITE_G6_READ_DEMO`; no sustituye los flujos comerciales ni configura autenticación. Su alcance y validaciones están registrados en [demo G6](docs/DEMO_G6_LECTURA_REAL.md) y [Issue #35 Catálogo/SKU](docs/ISSUE_35_CATALOGO.md).
+La demo interna de lectura G6 se habilita con `VITE_G6_READ_DEMO=true`, `VITE_DATA_MODE=api` y `VITE_GATEWAY_ORIGIN` explícito. Está aislada en `/demo/g6/productos`, `/demo/g6/productos/:id` y `/demo/g6/categorias`; las rutas administrativas conservan su router. Vercel no publica un proxy de `/api/v1/*`: el navegador consulta el origen configurado, sujeto a CORS y guards del Gateway. Pricing limita a tres las consultas simultáneas y cancela las pendientes al salir. Estado y reproducción: [correcciones de auditoría PR #40](docs/CORRECCIONES_PR40.md).
 
 ### Persistencia de la demostración
 

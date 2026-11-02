@@ -18,7 +18,7 @@ test("G6 real read demo: products, photos, PEN prices, detail and categories", a
   });
   page.on("pageerror", (error) => errors.push(error.message));
   try {
-    await page.goto("/productos");
+    await page.goto("/demo/g6/productos");
     await expect(
       page.getByRole("heading", {
         name: "G6 · Productos y Ofertas",

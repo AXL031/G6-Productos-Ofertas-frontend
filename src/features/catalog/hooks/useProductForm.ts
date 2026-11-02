@@ -71,7 +71,7 @@ export function useProductForm({
         categoriaId: initialProduct.categoryId,
         tipoProductoId: initialProduct.typeId,
         marcaId: initialProduct.brandId,
-        skuBase: initialProduct.skuBase,
+        skuBase: initialProduct.skuBase ?? "",
         tieneVariantes: initialProduct.hasVariants,
         precioBaseInicial: initialProduct.priceInitial || 0,
         imageUrl: initialProduct.imageUrl || "",

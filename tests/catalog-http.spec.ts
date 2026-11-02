@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { createCatalogFetchTransport, type CatalogHttpTransport } from "../src/features/catalog/adapters/catalogHttp";
 import { createHttpCatalogRepository } from "../src/features/catalog/adapters/httpCatalogRepository";
 import { createHttpTaxonomyRepository } from "../src/features/catalog/adapters/httpTaxonomyRepository";
-import { mapPreparation, mapVariant } from "../src/features/catalog/adapters/httpCatalogMapper";
+import { mapPreparation, mapProduct, mapVariant } from "../src/features/catalog/adapters/httpCatalogMapper";
 import { createOptionalCatalogHttpServices } from "../src/features/catalog/services/catalogHttpRuntime";
 import { MockCatalogRepository } from "../src/features/catalog/adapters/mockCatalogRepository";
 import type { ProductCreatePayload } from "../src/features/catalog/services/catalogRepository";
@@ -13,6 +13,50 @@ const payload: ProductCreatePayload = { nombre: "Producto", descripcion: "Descri
   atributos: [{ caracteristicaId: "color", nombre: "Color", tipo: "LISTA", valorId: "red", valor: "Rojo" }], perfilFisico: { pesoKg: 1, largoCm: 2, anchoCm: 3, altoCm: 4 } };
 const prep = { product_id: pid, tiene_variantes: false, pricing: { status: "PENDING", manual_retry_allowed: false, code: null }, inventario: { status: "REJECTED", manual_retry_allowed: false, code: "UBICACION_NO_ENCONTRADA" }, variantes: [] };
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json" } });
+const productDto = { product_id: pid, slug: "producto", name: "Servidor", sku_base: null, status: "BORRADOR", tiene_variantes: false, categoria_id: "category", marca_id: "brand", tipo_producto_id: "type", catalog_version: 12, description: null, attributes: [], images: [], variants: [], perfil_fisico: null };
+const variantDto = { variant_id: vid, sku: "000-case", status: "BORRADOR", catalog_version: 3, identifying_attributes: [], non_identifying_attributes: [], images: [], physical_profile: null };
+const variantPrep = { ...prep, tiene_variantes: true, inventario: null, variantes: [{ variant_id: vid, sku: "000-case", inventario: { status: "PENDING", manual_retry_allowed: false } }] };
+
+test("Mapper producto: null y SKU opcional ausente conservan ausencia; no genera códigos", () => {
+  for (const hasVariants of [false, true]) {
+    const preparation = mapPreparation(hasVariants ? variantPrep : prep);
+    for (const sku of [null, undefined, "000-case"]) {
+      const dto = { ...productDto, tiene_variantes: hasVariants, sku_base: sku };
+      expect(mapProduct(dto, preparation, []).skuBase).toBe(sku ?? null);
+    }
+    expect(() => mapProduct({ ...productDto, tiene_variantes: hasVariants, sku_base: 123 }, preparation, [])).toThrow();
+  }
+});
+
+test("HTTP simulado: éxitos de todas las mutaciones de producto y variante; 202 conserva admisión", async () => {
+  const root = `/api/v1/productos/${pid}`;
+  const h = harness((path, init) => {
+    if (path.endsWith("/preparacion/reintentar")) return json({ status: "ACCEPTED", operation_id: vid, correlation_id: pid }, 202);
+    if (path.endsWith("/preparacion")) return json(path.includes(root) && variantMode ? variantPrep : prep);
+    const status = path.endsWith("/desactivar") ? (variantMode ? "INACTIVA" : "INACTIVO")
+      : /\/(activar|reactivar)$/.test(path) ? (variantMode ? "ACTIVA" : "ACTIVO") : "BORRADOR";
+    return json(variantMode ? { ...variantDto, status } : { ...productDto, status }, init.method === "POST" && ["/api/v1/productos", `${root}/variantes`].includes(path) ? 201 : 200);
+  });
+  let variantMode = false;
+  expect(await h.catalog.create({ ...payload, atributos: [] })).toMatchObject({ skuBase: null, catalogVersion: 12 });
+  expect(await h.catalog.update(pid, { nombre: "Nuevo", descripcion: "", categoriaId: "category", marcaId: "brand", catalogVersion: 11 })).toMatchObject({ id: pid, skuBase: null });
+  for (const action of ["activate", "deactivate", "reactivate"] as const) {
+    const result = await h.catalog[action](pid, { catalogVersion: 12 });
+    expect(result.status).toBe(action === "deactivate" ? "INACTIVO" : "ACTIVO");
+    expect(result.skuBase).toBeNull();
+  }
+  expect(await h.catalog.retryPreparation(pid, { dependencia: "PRICING" })).toMatchObject({ accepted: true, operationId: vid });
+  variantMode = true;
+  expect(await h.catalog.createVariant(pid, { sku: "000-case", identifyingAttributes: [] })).toMatchObject({ variantId: vid, sku: "000-case" });
+  expect(await h.catalog.updateVariant(pid, vid, { catalogVersion: 2 })).toMatchObject({ catalogVersion: 3 });
+  for (const action of ["activateVariant", "deactivateVariant", "reactivateVariant"] as const) {
+    const result = await h.catalog[action](pid, vid);
+    expect(result.variant).toMatchObject({ variantId: vid, sku: "000-case", catalogVersion: 3, status: action === "deactivateVariant" ? "INACTIVA" : "ACTIVA" });
+    expect(result).not.toHaveProperty("parentNewStatus");
+  }
+  expect(await h.catalog.retryVariantPreparation(pid, vid)).toMatchObject({ accepted: true, operationId: vid });
+  expect(h.calls.filter(call => call.init.method !== "GET")).toHaveLength(12);
+});
 function harness(respond: (path: string, init: Parameters<CatalogHttpTransport["request"]>[1]) => Response | Promise<Response>) {
   const calls: { path: string; init: Parameters<CatalogHttpTransport["request"]>[1] }[] = [];
   const transport: CatalogHttpTransport = { request: async (path, init) => { calls.push({ path, init }); return respond(path, init); } };

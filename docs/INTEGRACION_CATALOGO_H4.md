@@ -1,5 +1,11 @@
 # Catálogo/SKU — #5, #6 y #35, Hito 4 fase 1
 
+> Nueva revisión de auditoría posterior a `4cda065`: ver
+> [CORRECCIONES_PR40.md](CORRECCIONES_PR40.md). Actualiza mapper nullable,
+> aislamiento de demo, concurrencia, proxy y evidencia. Los resultados y SHA de
+> este informe son históricos. #5/#6 siguen incompletos por lectura administrativa;
+> el nuevo diagnóstico Gateway es real y fallido, no sustituye el E2E pendiente.
+
 Fecha: 01/11/2026 (Lima). Rama exclusiva: `poma`. Estado: **PARCIAL**.
 PR existente: [#40](https://github.com/Taller-SW-Web/G6-Productos-Ofertas-frontend/pull/40).
 No se cierra ningún issue ni se hace merge a master.

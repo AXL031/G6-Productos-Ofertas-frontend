@@ -68,7 +68,7 @@ export interface VariantSummaryView {
 export interface ProductView {
   id: string;
   name: string;
-  skuBase: string;
+  skuBase: string | null;
   hasVariants: boolean;
   categoryId: string;
   categoryName: string;
