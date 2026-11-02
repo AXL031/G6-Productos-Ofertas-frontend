@@ -110,7 +110,7 @@ test("POM-01/POM-04: a brand created in the real app is selectable in Catalog", 
 test("POM-03: Pricing reads the current Catalog identity and name without fabricating a price", async () => {
   mockCatalogRepository.reset();
   const signal = new AbortController().signal;
-  const prices = createMockPricingRepository({ now: () => "2026-10-17T12:00:00Z" });
+  const prices = createMockPricingRepository({ now: () => "2026-10-17T12:00:00Z" }, undefined, { catalogTargets: true });
   const product = (await mockCatalogRepository.getById("PROD-MOCH-001"))!;
   await mockCatalogRepository.update(product.id, { nombre: "Mochila transversal", descripcion: product.description, categoriaId: product.categoryId, marcaId: product.brandId, catalogVersion: product.catalogVersion });
   await mockCatalogRepository.deactivate(product.id);

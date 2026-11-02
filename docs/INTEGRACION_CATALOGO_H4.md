@@ -146,12 +146,18 @@ propiedad opcional ya publicada si un consumidor autorizado aporta sus precondic
 - `CatalogReadError.tsx`, páginas ProductDetail/Edit/Preparation: errores visibles y
   preparación independiente; no transformar indisponibilidad en 404.
 - `src/features/pricing/adapters/mockPricingRepository.ts`: los targets de Catálogo
-  se incorporan también sin persistencia. No se inventa precio en ese recorrido;
-  el comportamiento persistente previo conserva su política independiente.
+  se incorporan al demo integrado también cuando no hay persistencia disponible.
+  La factory aislada conserva sus targets originales; `catalogTargets` permite
+  solicitar explícitamente la proyección integrada en pruebas en memoria.
+  No se inventa precio en ese recorrido; el comportamiento persistente previo
+  conserva su política independiente.
 - `tests/catalog-http*.spec.ts`, harness catalog-http: pruebas de transporte y UI API
   con respuestas explícitamente simuladas; no se presenta un Gateway falso como real.
 - Tests `variants`, `catalog-injection`, `transversal-integration`, `catalog-issue35`:
   SKU explícito, fixtures vigentes y regresiones de sesión/identidad.
+- `tests/promotions-startup.spec.ts`: conserva los controles de arranque independiente;
+  admite únicamente los GET contractuales de Catálogo cuando Gateway está configurado,
+  con 503 simulado y sin JWT/G7 inventado ni llamadas externas.
 - README, .env.example y este informe: configuración, alcance y evidencia honesta.
 
 No se cambian tokens ni colores: los estados nuevos reutilizan componentes/tema
@@ -169,7 +175,10 @@ Node 22.23.4, Windows, Chromium a 1440×900. Dependencias del lockfile sin cambi
 | TypeScript / ESLint / builds mock y api | PASS; comprobación final con Node 22 y ambos `npm run build` |
 | `npx playwright test tests/catalog-http.spec.ts tests/catalog-http-ui.spec.ts --workers=1 --output=test-results/catalog-http-final --reporter=line` | PASS, 23/23 después de los últimos ajustes |
 | `node scripts/verify-production.mjs api` sobre preview loopback | PASS, 53 vistas, 1440 px, sin errores ni carga de mocks; proveedores reales ausentes |
-| Suite completa Chromium | En curso; no se declara PASS |
+| `node scripts/verify-production.mjs mock` sobre preview loopback | PASS, 58 vistas, 1440 px, incluyendo recorrido de edición y auditoría simulada |
+| `npx playwright test tests/promotions-startup.spec.ts --workers=1 --output=test-results/catalog-startup-final --reporter=line` | PASS, 8/8 tras adaptar expectativas al nuevo provider de Catálogo |
+| Suite completa Chromium, `npx playwright test --reporter=line` | 538 PASS, 8 FAIL, 6 SKIP; 26,6 min. No se declara PASS de esa corrida |
+| Repetición aislada de los ocho fallos y regresiones relacionadas, un worker | PASS, 30/30 con las correcciones finales; log `.catalog-h4-recheck.log` |
 | Visual desktop 1440 px | Inspección manual de las dos capturas y comprobación de overflow PASS; alcance limitado a esos estados y las capturas de las suites MK-003/004 |
 | `git diff --check` | PASS |
 
@@ -189,11 +198,54 @@ quick, smoke, modes y shards 2/3 pasaron. Se consultó el log del job
 focalizada final de 78 pruebas incluye sus correcciones y pasa. Eso no acredita
 todavía CI del nuevo SHA ni el resultado agregado de la suite completa local.
 
-La suite completa local registra un fallo temporal en Bulk (`En cola de procesamiento`)
-y uno de arranque diferido del harness HTTP (cinco segundos, pantalla aún cargando).
-El harness ahora espera explícitamente a que cargue la página y la validación focalizada
-posterior de 78 pruebas pasa. Bulk no se modifica; el resultado agregado y su repetición
-se registran al finalizar. No se atribuye su origen sin una reproducción independiente.
+La suite completa local registró estos ocho fallos:
+
+1. Bulk esperaba el estado transitorio «En cola de procesamiento».
+2. HTTP UI/403 encontró el arranque diferido aún cargando tras cinco segundos.
+3. Inventory agotó el tiempo al seleccionar «Calzado».
+4–5. Dos pruebas de arranque aún exigían cero lecturas aun configurando Gateway.
+6. El recorrido transversal de alta/variante/recepción/F5 agotó su presupuesto total.
+7. VER-02 detectó que el primer ajuste de Pricing también ampliaba la factory aislada.
+8. El recorrido CSV por tres dominios agotó su presupuesto total de 30 segundos.
+
+Bulk e Inventory no se modifican y pasan al repetir aisladamente. No se atribuye
+su origen a una regresión de producto sin evidencia adicional. El harness espera
+explícitamente a que cargue la página. Los dos recorridos transversales disponen
+de 90 segundos totales, conservando todos los checks y plazos individuales.
+La factory de Pricing diferencia integración de disponibilidad de localStorage
+y mantiene el piloto aislado por defecto; VER-02 pasa sin relajar su aserción.
+La repetición de los ocho casos más regresiones #35/arranque/Pricing pasa 30/30.
+Comando: `npx playwright test tests/catalog-issue35.spec.ts tests/vera-integration.spec.ts
+tests/promotions-startup.spec.ts tests/bulk.spec.ts tests/inventory.spec.ts
+tests/transversal-integration.spec.ts tests/catalog-http-ui.spec.ts --grep
+'POM-|VER-|arranque real|composición opcional|@smoke Bulk: selección|Los filtros de
+categoría y marca|P0-01: Catálogo|La plantilla CSV descargable|UI API: 403'
+--workers=1 --output=test-results/catalog-recheck-final --reporter=line`.
+Las dos expectativas antiguas de arranque de Promotions exigían cero peticiones
+incluso al navegar a Catálogo con Gateway válido. Se actualizan para probar GET
+de Catálogo aislados, sin modificar el runtime de Promotions, guards ni endpoints.
+
+Se repitió `npm test` después del ajuste final de aislamiento: nuevamente 370 PASS.
+Ambos builds, TypeScript y lint de los archivos afectados se repitieron correctamente.
+Las capturas de Taxonomy generadas por la suite completa se conservaron en
+`test-results/transversal-generated`; las imágenes versionadas de ese módulo se
+restauraron a su estado inicial, sin incluir cambios ajenos en esta entrega.
+
+## Verificación de entrega
+
+- [x] Fuentes normativas, versión de Docs, alcance y pantallas identificados.
+- [x] Git inicial inspeccionado y cambio previo respetado.
+- [x] React/TypeScript, lint, builds mock y API comprobados.
+- [x] Pruebas del alcance y repeticiones ejecutadas; corrida completa no ocultada.
+- [x] Estados loading/empty/error y guardado rechazado cubiertos en pruebas.
+- [x] Dos capturas HTTP/UI inspeccionadas a 1440 px; sin overflow en esas vistas.
+- [x] HTTP fuera de componentes visuales; sin HEX locales ni nuevos tokens.
+- [x] Sin contratos, estados comerciales, roles/scopes o equivalencias de IDs inventados.
+- [x] Docs/Backend/Seguridad y base de datos sin modificaciones.
+- [x] Dependencias P0 y límites por operación registrados.
+- [ ] Gateway/BD reales: NO EJECUTADO por instrucción del usuario.
+- [ ] JWT real G7 y fase 2: NO EJECUTADO.
+- [ ] Aprobación UX, homologación y despliegue: NO ACREDITADOS.
 
 Pruebas reales navegador → Gateway → Catálogo → PostgreSQL: **NO EJECUTADAS**,
 dejadas pendientes por instrucción expresa del usuario. Ninguna prueba simulada
@@ -212,3 +264,12 @@ y se repitió la instalación correctamente. No cambia package-lock.json.
 
 **PARCIAL / adaptadores HTTP implementados, validación real pendiente.** No se declara
 API_INTEGRATED/VALIDATED de extremo a extremo, despliegue, aprobación UX ni cierre de issues.
+
+Código publicado inicialmente en `d4a5769b09a4f7acbbc814b2dda838fb789eb7dd` mediante
+push normal a poma. La revisión posterior conserva la factory aislada de Pricing,
+ajusta las pruebas de arranque y los presupuestos totales de dos recorridos largos.
+Los previews finales vuelven a pasar (API 53 / mock 58 vistas). Resumen reproducible:
+[validacion.txt](evidencias/catalogo-h4/validacion.txt). La CI se consulta por el SHA
+final publicado; no se atribuye a este candidato la CI de un SHA anterior.
+El usuario autorizó expresamente actualizar únicamente título/descripción del PR #40;
+se conserva abierto y dirigido a master. No se envían comentarios ni se cierran issues.
