@@ -3,9 +3,11 @@
 **Fecha:** 2026-11-01  
 **Rama:** `ci/atomizar-validaciones-y-verificar-despliegue-vercel`  
 **Base:** `origin/master` en `e171a20836042fcf95b526c668e0c4c2f6832d96`  
-**Solicitud de incorporación:** pendiente de publicar la rama.  
-**Ejecución de GitHub Actions:** pendiente; se agregará el enlace y el SHA probado
-después de abrir la solicitud de incorporación en borrador.  
+**Solicitud de incorporación:** [PR 63, en borrador](https://github.com/Taller-SW-Web/G6-Productos-Ofertas-frontend/pull/63).
+
+**SHA probado:** `cac1a3dfeb56ee4d647aceb49da47ce848844239`.
+
+**Ejecución de GitHub Actions:** [run 41372701966, intento 2](https://github.com/Taller-SW-Web/G6-Productos-Ofertas-frontend/actions/runs/41372701966), finalizado correctamente el 2026-11-02 UTC.
 **Controles de Vercel:** pendientes de configuración y ejecución real.
 
 Este registro es nuevo y no reemplaza la evidencia histórica del 16/10 en
@@ -74,6 +76,27 @@ La prueba rápida anterior se ejecutó contra la vista previa local de datos de
 demostración. No es evidencia de un deployment real ni de integración HTTP con
 Backend.
 
+## Ejecución remota de integración continua
+
+El intento 2 del run [41372701966](https://github.com/Taller-SW-Web/G6-Productos-Ofertas-frontend/actions/runs/41372701966)
+ejecutó el SHA `cac1a3dfeb56ee4d647aceb49da47ce848844239`. Los trece trabajos
+de validación —diez individuales y tres partes matriciales— y el agregador
+`Validación integral de integración continua` (catorce trabajos en total)
+terminaron en `success`.
+Las tres partes E2E reportaron 177, 181 y 151 pruebas aprobadas (509 en total).
+
+En el primer intento del mismo run, FND-05 falló al comprobar que el botón «Ver
+descripción completa» recuperaba el foco al cerrar el diálogo; las otras 176
+pruebas de esa parte pasaron. Se repitieron los trabajos fallidos sin cambiar el
+código y FND-05 pasó en el segundo intento. Se conserva el fallo original como
+evidencia de intermitencia; no se cambió la interfaz ni se ocultó el resultado.
+
+El run de PR identifica la configuración base del flujo con el nombre histórico
+`Frontend Foundation` en los metadatos de GitHub, aunque el nombre de ejecución
+actual y todos los nombres visibles de trabajos y pasos definidos en la rama
+son españoles. El nuevo nombre de flujo se verá como configuración vigente al
+incorporarse el archivo a la rama por defecto; esta PR permanece en borrador.
+
 ## Inspecciones remotas de solo lectura
 
 - GitHub, 2026-11-01: `master` devolvió `404 Branch not protected`; el listado
@@ -93,22 +116,20 @@ Backend.
 
 ## Configuración externa pendiente
 
-1. Publicar la rama, abrir la solicitud de incorporación en borrador a `master`
-   y verificar que el trabajo `Validación integral de integración continua`
-   aparece con ese nombre.
-2. Proteger `master` con esa comprobación, PR, aprobación, conversaciones
+1. Proteger `master` con la comprobación `Validación integral de integración continua`,
+   PR, aprobación, conversaciones
    resueltas y rama actualizada; bloquear force-push y borrado según el plan y
    los permisos.
-3. Crear el entorno GitHub `vercel-produccion`, restringido a `master`, con los
+2. Crear el entorno GitHub `vercel-produccion`, restringido a `master`, con los
    secretos `VERCEL_TOKEN` y `VERCEL_AUTOMATION_BYPASS_SECRET`, y las variables
    no secretas `VERCEL_PROJECT_ID` y `VERCEL_TEAM_ID`.
-4. Confirmar en Vercel que Deployment Checks están disponibles; mantener la
+3. Confirmar en Vercel que Deployment Checks están disponibles; mantener la
    integración Git y la asignación automática de alias; exigir la comprobación
    GitHub Actions y el estado `verificacion-despliegue-produccion` antes de
    asignar Production.
-5. Verificar que un deployment rechazado quede sin el alias de Production y que
+4. Verificar que un deployment rechazado quede sin el alias de Production y que
    la versión anterior siga atendiendo el dominio. No usar Force Promote como
    operación normal.
-6. Después de una promoción, registrar SHA → despliegue → alias → prueba rápida
+5. Después de una promoción, registrar SHA → despliegue → alias → prueba rápida
    con el enlace del flujo real. Un estado `READY` o un HTTP 200 de `/` no bastan.
 
