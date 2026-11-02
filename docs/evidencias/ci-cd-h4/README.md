@@ -1,134 +1,100 @@
 # Evidencia de CI/CD — Hito 4
 
-**Fecha:** 2026-11-01
+**Fecha de evaluación:** 2026-11-02
+
 **Rama:** `ci/atomizar-validaciones-y-verificar-despliegue-vercel`
-**Base:** `origin/master` en `e171a20836042fcf95b526c668e0c4c2f6832d96`
-**Solicitud de incorporación:** [PR 63, en borrador](https://github.com/Taller-SW-Web/G6-Productos-Ofertas-frontend/pull/63).
 
-**SHA probado:** `cac1a3dfeb56ee4d647aceb49da47ce848844239`.
+**Solicitud de incorporación:** [PR 63, en borrador](https://github.com/Taller-SW-Web/G6-Productos-Ofertas-frontend/pull/63)
 
-**Ejecución de GitHub Actions:** [run 41372701966, intento 2](https://github.com/Taller-SW-Web/G6-Productos-Ofertas-frontend/actions/runs/41372701966), finalizado correctamente el 2026-11-02 UTC.
-**Controles de Vercel:** pendientes de configuración y ejecución real.
+**Base integrada:** `origin/master` en `726fba0a2ceaaf4a3c60052fb1ff4cbf35139f6d`
 
-Este registro es nuevo y no reemplaza la evidencia histórica del 16/10 en
-[`VALIDACION_VERCEL.md`](../../VALIDACION_VERCEL.md).
+**SHA de la configuración medida:** `a0d66f67ae1457d7b46b9580a47d6047680c9004`
 
-## Flujos y trabajos configurados
+**Último run completo medido:** [41411709832](https://github.com/Taller-SW-Web/G6-Productos-Ofertas-frontend/actions/runs/41411709832), éxito, 15:17 de duración total
 
-### Integración continua del frontend
+**Estado de Vercel:** control implementado y probado mediante pruebas unitarias; validación del estado remoto y de Production pendiente de credenciales y deployment real.
 
-- `Revisión de estilo`
-- `Comprobación de tipos`
-- `Pruebas unitarias - Combos`
-- `Pruebas unitarias - Carga masiva`
-- `Pruebas unitarias - Inventario`
-- `Pruebas unitarias - Precios`
-- `Compilación - Datos de demostración`
-- `Compilación - Integración con API`
-- `Verificación de compilación local`
-- `Pruebas rápidas de interfaz`
-- `Pruebas de extremo a extremo (parte 1 de 3)`
-- `Pruebas de extremo a extremo (parte 2 de 3)`
-- `Pruebas de extremo a extremo (parte 3 de 3)`
-- `Validación integral de integración continua`
+Esta evidencia distingue la línea base histórica, la medición de cuatro fragmentos y la nueva distribución ponderada. La distribución ponderada se seleccionó a partir de los archivos lentos observados en el run 41411709832. Su duración aún no se ha medido en GitHub Actions; se actualizará cuando termine el primer run completo con esos manifiestos.
 
-El agregador revisa los once resultados obligatorios. Se comprobó su criterio con
-los once en `success` y con una dependencia en `failure`, `cancelled` y `skipped`:
-solo todos en `success` aprueban. En GitHub, una matriz incompleta o omitida debe
-aparecer como `skipped` y hacer fallar el agregador.
+## Medición antes y después
 
-### Verificación de despliegues de Vercel
+| Medición | SHA evaluado | Ejecución | E2E | Casos E2E | Duración total del workflow | Minutos de ejecutor |
+|---|---|---|---:|---:|---:|---:|
+| Línea base: tres fragmentos automáticos | `3edd364f3ca86c935f4541e4a5b063a7b6495e79` | [41387235904](https://github.com/Taller-SW-Web/G6-Productos-Ofertas-frontend/actions/runs/41387235904) | 3 | 515 aprobados | 14:04 | 44,30 |
+| Cuatro fragmentos automáticos; incluye cambios de master y 41 casos más | `a0d66f67ae1457d7b46b9580a47d6047680c9004` | [41411709832](https://github.com/Taller-SW-Web/G6-Productos-Ofertas-frontend/actions/runs/41411709832) | 4 | 550 aprobados, 6 omitidos por anotaciones de prueba | 15:17 | 47,28 |
+| Cuatro fragmentos ponderados por archivo | Pendiente | Pendiente | 4 | 556 enumerados; resultado remoto pendiente | Pendiente | Pendiente |
 
-- `Identificar versión y procedencia del despliegue`
-- `Comprobar funcionamiento del despliegue`
-- `Registrar resultado de verificación`
-- Contexto de estado reservado para Vercel: `verificacion-despliegue-produccion`
+La comparación entre los dos primeros runs no es equivalente: el segundo integra los cambios recientes de Catálogo desde `master` y enumera 556 casos, 41 más que los 515 aprobados en el run de referencia. El run 41411709832 tardó 1:13 más de extremo a extremo, aunque no puede atribuirse ese cambio únicamente a la configuración de fragmentos. No se presenta como mejora de duración.
 
-El flujo consulta la API autenticada de Vercel, comprueba que el SHA siga siendo
-el HEAD de `master` antes de publicar el estado y usa solo la URL inmutable
-devuelta por la API. La ejecución real está pendiente: el flujo de
-`repository_dispatch` debe estar en la rama por defecto y necesita credenciales,
-variables y Deployment Checks configurados. No se declara prueba de producción.
+### Duraciones de los fragmentos
 
-## Validaciones locales ejecutadas
+| Ejecución | Parte | Trabajo completo | Instalación `npm ci` | Instalación de Chromium | Paso E2E |
+|---|---:|---:|---:|---:|---:|
+| 41387235904 | 1 de 3 | 12:06 | 0:42 | 0:18 | 10:54 |
+| 41387235904 | 2 de 3 | 7:33 | 0:43 | 0:16 | 6:24 |
+| 41387235904 | 3 de 3 | 13:57 | 0:36 | 0:34 | 12:33 |
+| 41411709832 | 1 de 4 | 7:57 | 0:34 | 0:17 | 6:54 |
+| 41411709832 | 2 de 4 | 8:08 | 0:43 | 0:16 | 6:58 |
+| 41411709832 | 3 de 4 | 3:54 | 0:25 | 0:12 | 3:09 |
+| 41411709832 | 4 de 4 | 14:58 | 0:43 | 0:33 | 13:29 |
 
-Las verificaciones de código se ejecutaron con Node.js `22.21.1` en la rama de
-trabajo basada en `e171a20836042fcf95b526c668e0c4c2f6832d96`.
+El fragmento 4 automático del segundo run concentró archivos costosos y dominó el tiempo total. En sus resultados, los archivos de mayor duración acumulada fueron `transversal-integration.spec.ts` (174,8 s), `taxonomy-mk010.spec.ts` (137,8 s), `g6-mock-regressions.spec.ts` (134,1 s), `taxonomy-mk009.spec.ts` (95,1 s), `price-audit.spec.ts` (88,7 s), `taxonomy-ui.spec.ts` (83,5 s), `inventory.spec.ts` (71,2 s), `pricing-workflows.spec.ts` (66,6 s) y `recommendations.spec.ts` (66,1 s).
+
+Los nuevos manifiestos `scripts/e2e-fragmentos/parte-1.txt` a `parte-4.txt` asignan archivos completos una sola vez mediante una distribución voraz por duración acumulada registrada por Playwright. Si varios archivos tienen duración cero, el número de pruebas actúa solo como desempate mínimo. El cálculo distribuye las duraciones registradas en aproximadamente 7:30 por parte; es una estimación, no un resultado de ejecución. Se mantienen cuatro trabajos, un trabajador por trabajo y `fullyParallel: false`.
+
+Cada ejecución vuelve a enumerar la suite completa. Si Playwright no logra enumerarla, el trabajo falla y no puede aprobar cobertura incompleta. Si los manifiestos tienen archivos ausentes, adicionales o duplicados, cada fragmento usa la distribución automática completa de Playwright. Los nuevos casos dentro de un archivo existente se incluyen automáticamente porque el manifiesto selecciona archivos completos. Los archivos de pruebas nunca se dividen entre fragmentos.
+
+### Coste de ejecutores y demás comprobaciones
+
+El run 41387235904 utilizó 14 trabajos y aproximadamente 44,30 minutos de ejecutor sumados. El run 41411709832 utilizó 16 trabajos y aproximadamente 47,28 minutos: el cuarto entorno E2E añade una instalación separada y el clasificador es un trabajo nuevo. En el run 41411709832, `npm ci` duró 25–53 s por trabajo E2E y Chromium 12–33 s. Las otras instalaciones `npm ci` permanecen independientes; `actions/setup-node` conserva su caché de npm y todas usan `npm ci`.
+
+No se añadió caché de `node_modules` ni de Chromium: la instalación observada fue más pequeña que la variación entre fragmentos y no se midió una ganancia que justifique una caché adicional. Las compilaciones de demostración se comparten con la verificación local por artefacto; la compilación API conserva su propio modo y verificación. No se reutilizan artefactos de código entre trabajos privilegiados.
+
+### Cobertura y resultado del run 41411709832
+
+- Playwright enumeró 556 casos en 55 archivos. El run remoto registró 550 aprobados y 6 omitidos por anotaciones existentes; no hubo fallos. No se eliminaron pruebas ni se modificaron aserciones.
+- Las cuatro partes finalizaron correctamente; los resultados por parte fueron 142 aprobados, 136 aprobados, 148 aprobados y 6 omitidos más 124 aprobados, respectivamente.
+- Todos los trabajos de estilo, tipos, pruebas unitarias, compilaciones, smoke, verificación local y el agregador `Validación integral de integración continua` terminaron en `success`.
+- El conjunto unitario integrado ejecutó 370 pruebas; las cuatro particiones reportaron 56, 51, 108 y 155 aprobadas. La prueba rápida de interfaz aprobó 8.
+- El smoke local de 8 pruebas con dos trabajadores falló en dos verificaciones de interfaz sensibles a sincronización; los mismos casos y luego el conjunto smoke pasaron con un trabajador. Por ello, no se aumentó el paralelismo por fragmento. Se conservan `retries: 0`. FND-05 ya había mostrado intermitencia al recuperar el foco al cerrar un diálogo; se registró el fallo inicial y su aprobación posterior sin cambios de código ni reintentos.
+- La clasificación de cambios se ejecutó correctamente en el run de PR. Los cambios del run eran funcionales y de configuración, por lo que E2E corrió completo. La omisión documental se comprobó con pruebas unitarias de la clasificación, no con una ejecución real de PR exclusivamente documental.
+
+## Estado de producción de Vercel
+
+El workflow conserva el contexto `verificacion-despliegue-produccion` y el despliegue nativo de la integración GitHub–Vercel. El publicador externo basado en `repository-dispatch/actions/status@v1` se sustituyó por llamadas explícitas a la API oficial de estados de GitHub, con permiso `statuses:write` limitado a los trabajos que publican.
+
+Después de autenticar el proyecto, equipo, repositorio, rama y SHA, se registra `pending`. El resultado pasa a `success` solo si la comprobación remota pasa y el SHA del deployment sigue siendo el HEAD actual de `master`. Una comprobación remota fallida, un SHA obsoleto o una consulta de GitHub fallida dan estado `failure`. Si se cancela o falla la infraestructura antes de publicar el resultado final, el estado previo queda pendiente; no se convierte en éxito. Los runs asociados a SHA diferentes tienen grupos de concurrencia separados para que un deployment obsoleto no bloquee la versión posterior.
+
+Las pruebas unitarias verifican las decisiones de éxito, fallo remoto, cancelación, omisión, SHA obsoleto y fallo al consultar el HEAD. Son pruebas de lógica local; **no** publicaron estados reales ni comprobaron una URL de Production. No se configuraron secretos ni se inició un despliegue.
+
+## Validaciones reproducibles
+
+Validaciones ejecutadas localmente sobre los cambios de esta rama:
 
 | Verificación | Resultado |
 |---|---|
-| `npm ci` | Correcto. Instaló 255 paquetes; el lockfile no cambió. npm informó 13 vulnerabilidades de dependencias (12 moderadas, 1 alta); no se actualizaron paquetes. |
-| `npm run lint` | Correcto, código de salida 0. |
-| `npm run typecheck` | Correcto, código de salida 0. |
-| `npm test` | Correcto: 370 pruebas en 11 archivos (Combos 56, Carga masiva 51, Inventario 108, Precios 155). |
-| Compilación `VITE_DATA_MODE=mock` | Correcto. |
-| Compilación `VITE_DATA_MODE=api` | Correcto. |
-| `npx playwright test --grep '@smoke' --workers=1` | Correcto: 8 pruebas. |
-| `scripts/verify-production.mjs mock` contra vista previa local | Correcto: 58 vistas, 1440×900, sin errores. |
-| `scripts/vercel-smoke.mjs http://127.0.0.1:5174` | Correcto: 5 rutas, recarga de `/productos`, 49 recursos JS/CSS y cero errores de aplicación o red. |
-| `scripts/verify-production.mjs api` contra vista previa local | Correcto: 53 vistas, providers ausentes explícitos y sin retorno a mocks. |
-| Suite E2E completa en 3 fragmentos | No completada localmente: el primer fragmento se interrumpió en 67/177 casos por duración, sin fallo observado. Queda pendiente el resultado completo del PR en GitHub. |
-| YAML y grafo de dependencias | Los tres YAML se analizaron correctamente; se verificó el catálogo de trabajos, nombres de pasos y grafo del agregador. El criterio del agregador pasó los cuatro escenarios indicados arriba. |
-| Scripts JavaScript | `node --check` correcto para los tres scripts de verificación. |
-| Diff | `git diff --check` correcto. |
+| `npm run lint` | Correcto. |
+| `npm run typecheck` | Correcto. |
+| `npm test` | Correcto: 370 pruebas unitarias. |
+| Pruebas de scripts de estado Vercel, clasificación y manifiestos E2E | Correcto: 13 pruebas. |
+| `npx playwright test --list --test-list` en los cuatro manifiestos | Correcto: 176 + 122 + 138 + 120 = 556 casos en 55 archivos, sin solapamientos; no ejecuta la suite. |
+| Smoke E2E local con un trabajador | Correcto: 8 pruebas; resultado heredado de la verificación local del SHA `a0d66f6`. |
+| YAML, permisos y agregador | Correcto en el run 41411709832. |
+| `git diff --check` | Pendiente de repetir tras el último cambio documental. |
+| Run completo con distribución ponderada | Pendiente. |
+| Estado GitHub contra deployment Vercel real | Pendiente; no se ejecutó por no usar credenciales ni desplegar. |
 
-La prueba rápida anterior se ejecutó contra la vista previa local de datos de
-demostración. No es evidencia de un deployment real ni de integración HTTP con
-Backend.
+La prueba unitaria del publicador no sustituye la evidencia de la API remota. Tampoco se presenta la vista previa local o metadata de Vercel como prueba de producción.
 
-## Ejecución remota de integración continua
+## Cambios de master preservados
 
-El intento 2 del run [41372701966](https://github.com/Taller-SW-Web/G6-Productos-Ofertas-frontend/actions/runs/41372701966)
-ejecutó el SHA `cac1a3dfeb56ee4d647aceb49da47ce848844239`. Los trece trabajos
-de validación —diez individuales y tres partes matriciales— y el agregador
-`Validación integral de integración continua` (catorce trabajos en total)
-terminaron en `success`.
-Las tres partes E2E reportaron 177, 181 y 151 pruebas aprobadas (509 en total).
-
-En el primer intento del mismo run, FND-05 falló al comprobar que el botón «Ver
-descripción completa» recuperaba el foco al cerrar el diálogo; las otras 176
-pruebas de esa parte pasaron. Se repitieron los trabajos fallidos sin cambiar el
-código y FND-05 pasó en el segundo intento. Se conserva el fallo original como
-evidencia de intermitencia; no se cambió la interfaz ni se ocultó el resultado.
-
-El run de PR identifica la configuración base del flujo con el nombre histórico
-`Frontend Foundation` en los metadatos de GitHub, aunque el nombre de ejecución
-actual y todos los nombres visibles de trabajos y pasos definidos en la rama
-son españoles. El nuevo nombre de flujo se verá como configuración vigente al
-incorporarse el archivo a la rama por defecto; esta PR permanece en borrador.
-
-## Inspecciones remotas de solo lectura
-
-- GitHub, 2026-11-01: `master` devolvió `404 Branch not protected`; el listado
-  de rulesets del repositorio fue `[]`. No se modificaron las reglas.
-- Vercel, 2026-11-01: se encontró el proyecto `g6-productos-ofertas`. El listado
-  mostró el deployment de Production más reciente como `READY`, rama `master`,
-  SHA `e171a20836042fcf95b526c668e0c4c2f6832d96`, ID
-  `dpl_zw8smikrJGuE7sjfn1MB5tbDtzeB` y URL
-  `https://g6-productos-ofertas-6j2jrpc90-marecahu02-9205s-projects.vercel.app`.
-  Es metadata de listado, no un smoke; no se abrió esa URL ni se confirmó el alias.
-- La lectura detallada del deployment y la del equipo respondieron `403` por
-  autorización de la conexión Vercel. No se comprobó el plan ni la disponibilidad
-  de Deployment Checks.
-- El proyecto informa protección SSO para los dominios de deployment que no son
-  personalizados. El secreto de Protection Bypass for Automation no está
-  configurado en GitHub. Por eso no se ejecutó una prueba remota.
+Se integró `origin/master` con merge normal, sin conflictos, mediante `bb69976` (`merge: integrar cambios recientes de master`). La integración incluye los cambios y pruebas de Catálogo de `726fba0`; no se sobrescribieron funcionalidades de otros integrantes ni se reescribió historial publicado.
 
 ## Configuración externa pendiente
 
-1. Proteger `master` con la comprobación `Validación integral de integración continua`,
-   PR, aprobación, conversaciones
-   resueltas y rama actualizada; bloquear force-push y borrado según el plan y
-   los permisos.
-2. Crear el entorno GitHub `vercel-produccion`, restringido a `master`, con los
-   secretos `VERCEL_TOKEN` y `VERCEL_AUTOMATION_BYPASS_SECRET`, y las variables
-   no secretas `VERCEL_PROJECT_ID` y `VERCEL_TEAM_ID`.
-3. Confirmar en Vercel que Deployment Checks están disponibles; mantener la
-   integración Git y la asignación automática de alias; exigir la comprobación
-   GitHub Actions y el estado `verificacion-despliegue-produccion` antes de
-   asignar Production.
-4. Verificar que un deployment rechazado quede sin el alias de Production y que
-   la versión anterior siga atendiendo el dominio. No usar Force Promote como
-   operación normal.
-5. Después de una promoción, registrar SHA → despliegue → alias → prueba rápida
-   con el enlace del flujo real. Un estado `READY` o un HTTP 200 de `/` no bastan.
+1. En el entorno GitHub `vercel-produccion`, configurar las variables `VERCEL_PROJECT_ID` y `VERCEL_TEAM_ID`, y los secretos `VERCEL_TOKEN` y `VERCEL_AUTOMATION_BYPASS_SECRET`. No se modificó esta configuración.
+2. Confirmar que la integración nativa de Vercel conserva el alias automático y que Deployment Checks están disponibles para el proyecto.
+3. Exigir el contexto `verificacion-despliegue-produccion` antes de asignar Production y mantener la validación integral de CI como control de la PR. No se modificaron protecciones de rama.
+4. Tras disponer de configuración, ejecutar un deployment real de prueba y registrar el enlace run → SHA → deployment → smoke → estado. Verificar también que una comprobación fallida no promociona la versión.
+
+La alternativa futura de una verificación rápida obligatoria antes del merge y E2E completo antes de publicar se conserva únicamente como propuesta. No se activa hasta verificar que el control real de Vercel bloquea deployments defectuosos.

@@ -54,6 +54,8 @@ jobs:
         run: node --test scripts/registrar-estado-vercel.test.mjs
       - name: Probar clasificación segura de cambios
         run: node --test scripts/clasificar-cambios-ci.test.mjs
+      - name: Probar cobertura completa de fragmentos E2E
+        run: node --test scripts/ejecutar-e2e-balanceado.test.mjs
 
   comprobacion_tipos:
     name: Comprobación de tipos
@@ -336,7 +338,7 @@ jobs:
       - name: Instalar Chromium para Playwright
         run: npx playwright install --with-deps chromium
       - name: Ejecutar pruebas de extremo a extremo
-        run: npx playwright test --shard=${{ matrix.parte }}/4 --workers=1 --reporter=blob
+        run: node scripts/ejecutar-e2e-balanceado.mjs ${{ matrix.parte }} 4
       - name: Conservar resultados de extremo a extremo
         if: always()
         uses: actions/upload-artifact@v7.0.2
