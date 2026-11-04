@@ -1,5 +1,20 @@
 import type { TaxonomyGatewayTransport } from "../adapters/httpProductTypeAdapter";
-import { secureBase } from "../../promotions/adapters/g7Session";
+
+function secureGatewayOrigin(value: string): string {
+  const url = new URL(value);
+  if (
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash ||
+    url.pathname !== "/" ||
+    (url.protocol !== "https:" &&
+      !(url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)))
+  ) {
+    throw new Error("Configura una URL HTTPS válida para la integración.");
+  }
+  return url.href.replace(/\/$/, "");
+}
 
 export interface TaxonomySession {
   getAccessToken(signal: AbortSignal): Promise<string | null>;
@@ -28,7 +43,7 @@ export function createAuthenticatedTaxonomyGateway(
   session: TaxonomySession,
   fetcher: typeof fetch = fetch,
 ): TaxonomyGatewayTransport {
-  const origin = secureBase(gatewayOrigin, true);
+  const origin = secureGatewayOrigin(gatewayOrigin);
   return {
     async request(path, signal, correlationId) {
       signal.throwIfAborted();
