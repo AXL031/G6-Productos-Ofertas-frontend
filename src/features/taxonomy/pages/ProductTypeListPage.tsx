@@ -87,16 +87,17 @@ export function ProductTypeListPage() {
       header: "Acciones",
       width: 80,
       align: "right",
-      render: (item) =>
-        mode === "api" ? null : (
+      render: (item) => (
           <ActionIcon
-            aria-label={`Ver detalle de ${item.nombre}`}
-            title="Ver detalle"
-            onClick={() => navigate(`/tipos-producto/${item.tipoProductoId}`)}
+            aria-label={`${mode === "api" ? "Ver esquema" : "Ver detalle"} de ${item.nombre}`}
+            title={mode === "api" ? "Ver esquema" : "Ver detalle"}
+            onClick={() => navigate(mode === "api"
+              ? `/tipos-producto/${encodeURIComponent(item.tipoProductoId)}/esquema`
+              : `/tipos-producto/${encodeURIComponent(item.tipoProductoId)}`)}
           >
             <IconEye size={16} stroke={2} aria-hidden="true" />
           </ActionIcon>
-        ),
+      ),
     },
   ];
 

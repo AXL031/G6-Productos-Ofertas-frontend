@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { MantineProvider } from "@mantine/core";
 import { DataModeContext } from "../../../app/config/DataModeContext";
 import { configureTaxonomyGateway } from "../services/taxonomyGatewayRuntime";
 import { ProductTypeListPage } from "../pages/ProductTypeListPage";
+import { ProductTypeSchemaPage } from "../pages/ProductTypeSchemaPage";
 import { TaxonomyModeGate } from "../../../app/config/TaxonomyModeGate";
 vi.mock("../../shared/useMockStateRevision", () => ({
   useMockStateRevision: () => 0,
@@ -74,6 +75,74 @@ it("el gate abre solo la pantalla con adaptador HTTP y mantiene las demás bloqu
     </MantineProvider>,
   );
   expect(screen.getByText("contenido habilitado")).toBeTruthy();
+});
+
+it("habilita la consulta de esquema solo con el adapter configurado", () => {
+  configureTaxonomyGateway(undefined);
+  const blocked = render(
+    <MantineProvider>
+      <DataModeContext.Provider value="api">
+        <MemoryRouter initialEntries={["/tipos-producto/type-1/esquema"]}>
+          <TaxonomyModeGate><span>esquema disponible</span></TaxonomyModeGate>
+        </MemoryRouter>
+      </DataModeContext.Provider>
+    </MantineProvider>,
+  );
+  expect(screen.queryByText("esquema disponible")).toBeNull();
+  blocked.unmount();
+  configureTaxonomyGateway({ request: vi.fn() });
+  render(
+    <MantineProvider>
+      <DataModeContext.Provider value="api">
+        <MemoryRouter initialEntries={["/tipos-producto/type-1/esquema"]}>
+          <TaxonomyModeGate><span>esquema disponible</span></TaxonomyModeGate>
+        </MemoryRouter>
+      </DataModeContext.Provider>
+    </MantineProvider>,
+  );
+  expect(screen.getByText("esquema disponible")).toBeTruthy();
+});
+
+it("muestra esquema API tipado en modo lectura sin controles administrativos", async () => {
+  const request = vi.fn().mockResolvedValue(Response.json({
+    tipoProducto: { tipoProductoId: "type-1", nombre: "Calzado HTTP", estado: "ACTIVO", schemaVersion: 0 },
+    caracteristicas: [],
+    schemaVersion: 0,
+  }));
+  configureTaxonomyGateway({ request });
+  render(
+    <MantineProvider>
+      <DataModeContext.Provider value="api">
+        <MemoryRouter initialEntries={["/tipos-producto/type-1/esquema"]}>
+          <Routes><Route path="/tipos-producto/:id/esquema" element={<TaxonomyModeGate><ProductTypeSchemaPage /></TaxonomyModeGate>} /></Routes>
+        </MemoryRouter>
+      </DataModeContext.Provider>
+    </MantineProvider>,
+  );
+  expect(await screen.findByRole("heading", { level: 1, name: "Calzado HTTP" })).toBeTruthy();
+  expect(screen.getByText("Este tipo de producto no tiene características asociadas.")).toBeTruthy();
+  expect(screen.queryByRole("button", { name: /desactivar|asociar|reactivar/i })).toBeNull();
+  expect(request).toHaveBeenCalledWith(
+    "/api/v1/tipos-producto/type-1/caracteristicas",
+    expect.any(AbortSignal),
+  );
+});
+
+it("presenta HTTP 404 como tipo no encontrado sin recurrir a datos mock", async () => {
+  const request = vi.fn().mockResolvedValue(new Response(null, { status: 404 }));
+  configureTaxonomyGateway({ request });
+  render(
+    <MantineProvider>
+      <DataModeContext.Provider value="api">
+        <MemoryRouter initialEntries={["/tipos-producto/type-missing/esquema"]}>
+          <Routes><Route path="/tipos-producto/:id/esquema" element={<TaxonomyModeGate><ProductTypeSchemaPage /></TaxonomyModeGate>} /></Routes>
+        </MemoryRouter>
+      </DataModeContext.Provider>
+    </MantineProvider>,
+  );
+  expect(await screen.findByText("Tipo de producto no encontrado")).toBeTruthy();
+  expect(screen.queryByText("Calzado deportivo")).toBeNull();
+  expect(request).toHaveBeenCalledTimes(1);
 });
 
 it.each([
