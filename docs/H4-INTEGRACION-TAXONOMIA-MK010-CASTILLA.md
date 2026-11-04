@@ -22,6 +22,7 @@ PR #65 permanece abierta e intacta. PR #63 no fue modificada. El checkout fronte
 - Cada consulta tiene timeout acotado y comparte cancelación con la señal del hook. La UI conserva loading, éxito, lista vacía, error visible y reintento; el modo `api` nunca cambia a fixtures ante un fallo.
 - La sesión G7 humana existente se reutiliza. Solo ante `401 TOKEN_INVALIDO` se renueva y repite el GET una vez; errores 401 desconocidos, 403, 5xx, conexión fallida y ausencia de sesión no se reintentan. Las rutas administrativas MK-008, MK-009, MK-011 y MK-012 y operaciones MK-010 sin adapter permanecen cerradas en API.
 - `test:unit:taxonomy` quedó agregado a `npm test`; el workflow existente ya ejecuta ese comando. No se editó `.github/workflows/frontend.yml` ni la configuración de CI atomizada.
+- El verificador de producción permite el copy exacto “Datos simulados” solo en rutas Taxonomía del modo `mock`; mantiene bloqueados los avisos comerciales/técnicos y no permite fallback en `api`.
 
 ## Contrato y seguridad pendientes
 
@@ -41,6 +42,8 @@ Entorno: Node `v24.3.0`, npm `11.4.2`. `npm ci` terminó, pero emitió `EBADENGI
 | `npm test` | PASS, 416 tests en los seis grupos configurados |
 | `$env:VITE_DATA_MODE='mock'; npm run build` | PASS |
 | `$env:VITE_DATA_MODE='api'; npm run build` | PASS |
+| `node scripts/verify-production.mjs mock` | PASS, 58 vistas; aviso mock explícito limitado a Taxonomía |
+| `node scripts/verify-production.mjs api` | PASS, 53 vistas; cero carga de mocks/bundles |
 | `npx playwright test tests/taxonomy-mk010.spec.ts tests/taxonomy-ui.spec.ts --workers=1` | PASS, 40 tests; pruebas UI/mock y viewport 1440×900, no integración de Gateway |
 | `node scripts/ci/run-taxonomy-integration.mjs` en Backend | PASS, 39/39 con PostgreSQL desechable, checkout `feat/bulk-h4-cierre-http` en SHA `ca1c5a6fd0bf304267007f9b017f5780fb25f538`; prueba del provider, no del flujo Frontend→Gateway |
 
