@@ -10,7 +10,10 @@ import "@fontsource/oswald/latin-700.css";
 import { theme, cssVariablesResolver } from "./theme/theme";
 import "./theme/global.css";
 import { App } from "./app/App";
-import { configureTaxonomyGateway } from "./features/taxonomy/services/taxonomyGatewayRuntime";
+import {
+  configureTaxonomyGateway,
+  createAuthenticatedTaxonomyGateway,
+} from "./features/taxonomy/services/taxonomyGatewayRuntime";
 import { createPricingRuntime } from "./features/pricing/services/pricingService";
 import { PricingProvider } from "./features/pricing/components/PricingProvider";
 import { resolveDataMode } from "./app/config/dataMode";
@@ -43,27 +46,9 @@ async function start() {
         ).createOptionalPromotionSessionRuntime(gatewayOrigin, securityApiBase)
       : null;
   if (mode === "api" && gatewayOrigin && promotions) {
-    const origin = new URL(gatewayOrigin).origin;
-    configureTaxonomyGateway({
-      request: async (path, signal) => {
-        const token = await promotions.session.getAccessToken(signal);
-        if (!token)
-          throw new Error(
-            "Inicia sesión en Promociones y vuelve a intentar la consulta de Taxonomía.",
-          );
-        return fetch(origin + path, {
-          method: "GET",
-          signal,
-          credentials: "omit",
-          redirect: "error",
-          cache: "no-store",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "X-Correlation-Id": crypto.randomUUID(),
-          },
-        });
-      },
-    });
+    configureTaxonomyGateway(
+      createAuthenticatedTaxonomyGateway(gatewayOrigin, promotions.session),
+    );
   }
   const combosRuntime = await createCombosRuntime(mode, runtime);
   const catalogServices = (mode === "api" ? createOptionalCatalogHttpServices(gatewayOrigin) : null) ?? getCatalogServices(mode);

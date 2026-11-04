@@ -4,6 +4,7 @@ export default defineConfig({
     include: [
       "src/features/taxonomy/adapters/**/*.test.ts",
       "src/features/taxonomy/adapters/**/*.test.tsx",
+      "src/features/taxonomy/services/**/*.test.ts",
     ],
     environment: "node",
   },

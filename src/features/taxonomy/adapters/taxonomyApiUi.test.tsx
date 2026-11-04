@@ -23,7 +23,10 @@ Object.defineProperty(window, "matchMedia", {
     dispatchEvent: () => false,
   }),
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  configureTaxonomyGateway(undefined);
+});
 it("muestra 403 en la interfaz sin sustituir la respuesta por fixtures", async () => {
   const request = vi
     .fn()
@@ -71,6 +74,32 @@ it("el gate abre solo la pantalla con adaptador HTTP y mantiene las demás bloqu
     </MantineProvider>,
   );
   expect(screen.getByText("contenido habilitado")).toBeTruthy();
+});
+
+it.each([
+  "/categorias",
+  "/caracteristicas",
+  "/tipos-producto/nuevo",
+  "/tipos-producto/type-1",
+  "/marcas",
+  "/seo",
+])("mantiene la ruta administrativa %s bloqueada en modo API", (path) => {
+  configureTaxonomyGateway({ request: vi.fn() });
+  render(
+    <MantineProvider>
+      <DataModeContext.Provider value="api">
+        <MemoryRouter initialEntries={[path]}>
+          <TaxonomyModeGate>
+            <span>acción administrativa disponible</span>
+          </TaxonomyModeGate>
+        </MemoryRouter>
+      </DataModeContext.Provider>
+    </MantineProvider>,
+  );
+  expect(
+    screen.getByText("Esta función no está disponible en el modo actual."),
+  ).toBeTruthy();
+  expect(screen.queryByText("acción administrativa disponible")).toBeNull();
 });
 
 it("identifica el mock de Taxonomía como datos simulados", () => {
