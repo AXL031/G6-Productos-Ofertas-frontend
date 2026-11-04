@@ -1,7 +1,11 @@
 import { useContext, useEffect, useState } from "react";
 import { DataModeContext } from "../../../app/config/DataModeContext";
 import { getTaxonomyGateway } from "../services/taxonomyGatewayRuntime";
-import { createHttpProductTypeSchemaAdapter } from "../adapters/httpProductTypeSchemaAdapter";
+import {
+  createHttpProductTypeSchemaAdapter,
+  ProductTypeSchemaHttpError,
+} from "../adapters/httpProductTypeSchemaAdapter";
+import { TaxonomyGatewayError } from "../services/taxonomyGatewayRuntime";
 import type { ProductTypeSchema } from "../services/productTypeRepository";
 
 export type ProductTypeSchemaState =
@@ -9,6 +13,14 @@ export type ProductTypeSchemaState =
   | { status: "success"; esquema: ProductTypeSchema }
   | { status: "not-found" }
   | { status: "error"; message: string };
+
+function httpStatus(error: unknown): number | undefined {
+  if (
+    error instanceof ProductTypeSchemaHttpError ||
+    error instanceof TaxonomyGatewayError
+  ) return error.status;
+  return undefined;
+}
 
 export function useProductTypeSchema(id: string): {
   state: ProductTypeSchemaState;
@@ -63,14 +75,23 @@ export function useProductTypeSchema(id: string): {
       },
       (error: unknown) => {
         if (controller.signal.aborted) return;
+        const status = httpStatus(error);
         setResult({
           key,
-          state: error instanceof ProductTypeNotFoundError
-            ? { status: "not-found" }
-            : {
-                status: "error",
-                message: error instanceof Error ? error.message : "No se pudo cargar el esquema.",
-              },
+          state:
+            error instanceof ProductTypeNotFoundError || status === 404
+              ? { status: "not-found" }
+              : {
+                  status: "error",
+                  message:
+                    status === 401
+                      ? "Autenticación requerida para consultar el esquema (HTTP 401)."
+                      : status === 403
+                        ? "No tienes autorización para consultar el esquema (HTTP 403)."
+                        : error instanceof Error
+                          ? error.message
+                          : "No se pudo cargar el esquema.",
+                },
         });
       },
     );

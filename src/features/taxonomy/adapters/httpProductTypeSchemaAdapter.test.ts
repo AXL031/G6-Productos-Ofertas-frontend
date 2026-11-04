@@ -20,6 +20,7 @@ const payload = {
         tipo: "LISTA",
         unidadMedida: null,
         estado: "ACTIVO",
+        version: 0,
         valores: [{ valorId: "size-1", nombre: "38", estado: "ACTIVO", version: 0 }],
       },
     },
@@ -35,7 +36,11 @@ function adapter(response: Response | ((signal: AbortSignal) => Promise<Response
 
 describe("GET esquema de tipo de producto", () => {
   it("lee la ruta contractual, acepta schemaVersion 0 y valida el DTO", async () => {
-    const { api, request } = adapter(Response.json(payload));
+    const response = {
+      ...payload,
+      tipoProducto: { ...payload.tipoProducto, tipoProductoId: "type/1" },
+    };
+    const { api, request } = adapter(Response.json(response));
     const result = await api.obtenerEsquema("type/1");
     expect(request).toHaveBeenCalledWith(
       "/api/v1/tipos-producto/type%2F1/caracteristicas",
@@ -59,6 +64,71 @@ describe("GET esquema de tipo de producto", () => {
   ])("rechaza payloads fuera de esquema", async (invalid) => {
     const { api } = adapter(Response.json(invalid));
     await expect(api.obtenerEsquema("type-1")).rejects.toThrow("Respuesta de esquema de Taxonomía inválida.");
+  });
+
+  it("acepta que caracteristica esté ausente y la representa como null", async () => {
+    const { caracteristica: _omitted, ...association } = payload.caracteristicas[0]!;
+    expect(_omitted).toBeDefined();
+    const { api } = adapter(Response.json({
+      ...payload,
+      caracteristicas: [association],
+    }));
+    const result = await api.obtenerEsquema("type-1");
+    expect(result.caracteristicas[0]?.caracteristica).toBeNull();
+  });
+
+  it("conserva el null explícito de caracteristica", async () => {
+    const { api } = adapter(Response.json({
+      ...payload,
+      caracteristicas: [{ ...payload.caracteristicas[0], caracteristica: null }],
+    }));
+    const result = await api.obtenerEsquema("type-1");
+    expect(result.caracteristicas[0]?.caracteristica).toBeNull();
+  });
+
+  it("rechaza una respuesta cuyo tipoProductoId no coincide con el solicitado", async () => {
+    const { api } = adapter(Response.json(payload));
+    await expect(api.obtenerEsquema("different-id")).rejects.toThrow(
+      "Respuesta de esquema de Taxonomía inválida.",
+    );
+  });
+
+  it.each([
+    (characteristic: typeof payload.caracteristicas[0]["caracteristica"]) => {
+      const { version: _version, ...withoutVersion } = characteristic!;
+      expect(_version).toBe(0);
+      return withoutVersion;
+    },
+    (characteristic: typeof payload.caracteristicas[0]["caracteristica"]) => ({
+      ...characteristic,
+      version: -1,
+    }),
+  ])("rechaza CaracteristicaAdmin sin version válida", async (change) => {
+    const association = payload.caracteristicas[0]!;
+    const characteristic = change(association.caracteristica);
+    const { api } = adapter(Response.json({
+      ...payload,
+      caracteristicas: [{ ...association, caracteristica: characteristic }],
+    }));
+    await expect(api.obtenerEsquema("type-1")).rejects.toThrow(
+      "Respuesta de esquema de Taxonomía inválida.",
+    );
+  });
+
+  it("rechaza valores anidados sin version contractual", async () => {
+    const { version: _version, ...valor } = payload.caracteristicas[0]!.caracteristica!.valores![0]!;
+    expect(_version).toBe(0);
+    const association = payload.caracteristicas[0]!;
+    const { api } = adapter(Response.json({
+      ...payload,
+      caracteristicas: [{
+        ...association,
+        caracteristica: { ...association.caracteristica!, valores: [valor] },
+      }],
+    }));
+    await expect(api.obtenerEsquema("type-1")).rejects.toThrow(
+      "Respuesta de esquema de Taxonomía inválida.",
+    );
   });
 
   it("propaga cancelación antes de enviar la petición", async () => {

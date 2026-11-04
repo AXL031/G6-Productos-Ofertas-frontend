@@ -128,6 +128,23 @@ it("muestra esquema API tipado en modo lectura sin controles administrativos", a
   );
 });
 
+it("presenta HTTP 404 como tipo no encontrado sin recurrir a datos mock", async () => {
+  const request = vi.fn().mockResolvedValue(new Response(null, { status: 404 }));
+  configureTaxonomyGateway({ request });
+  render(
+    <MantineProvider>
+      <DataModeContext.Provider value="api">
+        <MemoryRouter initialEntries={["/tipos-producto/type-missing/esquema"]}>
+          <Routes><Route path="/tipos-producto/:id/esquema" element={<TaxonomyModeGate><ProductTypeSchemaPage /></TaxonomyModeGate>} /></Routes>
+        </MemoryRouter>
+      </DataModeContext.Provider>
+    </MantineProvider>,
+  );
+  expect(await screen.findByText("Tipo de producto no encontrado")).toBeTruthy();
+  expect(screen.queryByText("Calzado deportivo")).toBeNull();
+  expect(request).toHaveBeenCalledTimes(1);
+});
+
 it.each([
   "/categorias",
   "/caracteristicas",

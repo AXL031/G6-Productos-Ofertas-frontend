@@ -7,6 +7,13 @@ import type { ProductTypeSchema } from "../services/productTypeRepository";
 const INVALID_RESPONSE = "Respuesta de esquema de Taxonomía inválida.";
 const TIMEOUT_MS = 7500;
 
+export class ProductTypeSchemaHttpError extends Error {
+  constructor(readonly status: number) {
+    super(`No se pudo cargar el esquema (HTTP ${status}).`);
+    this.name = "ProductTypeSchemaHttpError";
+  }
+}
+
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value))
     throw new Error(INVALID_RESPONSE);
@@ -25,11 +32,11 @@ function version(value: unknown): number {
   return Number(value);
 }
 
-function mapSchema(value: unknown): ProductTypeSchema {
+function mapSchema(value: unknown, requestedId: string): ProductTypeSchema {
   const dto = object(value);
   const tipo = object(dto.tipoProducto);
   if (
-    typeof tipo.tipoProductoId !== "string" || !tipo.tipoProductoId.trim() ||
+    tipo.tipoProductoId !== requestedId ||
     typeof tipo.nombre !== "string" || !tipo.nombre.trim() ||
     !Array.isArray(dto.caracteristicas)
   ) throw new Error(INVALID_RESPONSE);
@@ -39,16 +46,27 @@ function mapSchema(value: unknown): ProductTypeSchema {
     if (typeof row.caracteristicaId !== "string" || !row.caracteristicaId.trim() ||
       typeof row.obligatoria !== "boolean") throw new Error(INVALID_RESPONSE);
     let caracteristica: ProductTypeSchema["caracteristicas"][number]["caracteristica"] = null;
-    if (row.caracteristica !== null) {
+    if (row.caracteristica !== undefined && row.caracteristica !== null) {
       const item = object(row.caracteristica);
       if (
+        typeof item.caracteristicaId !== "string" ||
         item.caracteristicaId !== row.caracteristicaId ||
         typeof item.nombre !== "string" || !item.nombre.trim() ||
         (item.tipo !== "TEXTO" && item.tipo !== "NUMERO" && item.tipo !== "LISTA") ||
         (item.unidadMedida !== undefined && item.unidadMedida !== null && typeof item.unidadMedida !== "string") ||
         (item.valores !== undefined && !Array.isArray(item.valores))
       ) throw new Error(INVALID_RESPONSE);
-      const valores = item.valores?.map((value) => ({ estado: state(object(value).estado) }));
+      version(item.version);
+      const valores = item.valores?.map((value) => {
+        const valor = object(value);
+        if (
+          typeof valor.valorId !== "string" ||
+          typeof valor.nombre !== "string"
+        ) throw new Error(INVALID_RESPONSE);
+        const estado = state(valor.estado);
+        version(valor.version);
+        return { estado };
+      });
       caracteristica = {
         caracteristicaId: item.caracteristicaId,
         nombre: item.nombre,
@@ -92,15 +110,14 @@ export function createHttpProductTypeSchemaAdapter(
         abort,
         timeoutMs,
       );
-      if (!response.ok)
-        throw new Error(`No se pudo cargar el esquema (HTTP ${response.status}).`);
+      if (!response.ok) throw new ProductTypeSchemaHttpError(response.status);
       let payload: unknown;
       try {
         payload = await response.json();
       } catch {
         throw new Error(INVALID_RESPONSE);
       }
-      return mapSchema(payload);
+      return mapSchema(payload, id);
     },
   };
 }
