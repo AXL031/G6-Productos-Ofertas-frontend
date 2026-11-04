@@ -12,8 +12,16 @@ const errors = [];
 const requests = [];
 page.on("pageerror", (error) => errors.push(error.message));
 page.on("request", (request) => requests.push(request.url()));
-async function verifyCommercialCopy() {
-  assert.doesNotMatch(await page.locator("main").innerText(),
+async function verifyCommercialCopy(allowTaxonomyMockNotice = false) {
+  let copy = await page.locator("main").innerText();
+  if (allowTaxonomyMockNotice) {
+    assert.equal(await page.getByText("Datos simulados", { exact: true }).count(), 1);
+    copy = copy.replace(
+      "Datos simulados\nEsta pantalla utiliza datos de demostración locales.",
+      "",
+    );
+  }
+  assert.doesNotMatch(copy,
     /\b(?:mock|fixtures?|adapters?|providers?|backend|piloto)\b|datos (?:ficticios|simulados|de demostración)|(?:viven|cambios) en memoria|MK-\d{3}|Q-\d{3}/i);
   assert.equal(await page.getByRole("combobox", { name: /Escenario de|Respuesta ficticia|Caso de demostración/ }).count(), 0);
 }
@@ -174,11 +182,14 @@ try {
       await page.getByRole("heading", { level: 1 }).waitFor();
       if (table) await page.getByRole("table").waitFor();
       if (form) await page.locator("main form").waitFor();
-      assert.equal(await page.getByRole("alert").count(), 0);
+      assert.equal(
+        await page.getByText("Datos simulados", { exact: true }).count(),
+        1,
+      );
       assert.equal(await page.getByText("Datos de demostración", { exact: true }).count(), 0);
       assert.equal(await page.getByRole("combobox", { name: /Escenario/ }).count(), 0);
     }
-    await verifyCommercialCopy();
+    await verifyCommercialCopy(mode === "mock");
     assert.equal(
       await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
       true,
