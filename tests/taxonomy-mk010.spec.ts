@@ -110,6 +110,14 @@ test.describe("MK-010 Tipos de producto y esquemas de caracteristicas", () => {
     __resetCharacteristicStore();
   });
 
+  test("consulta de esquema read-only conserva el recorrido mock", async ({ page }) => {
+    await page.goto("/tipos-producto/calzado/esquema");
+    await expect(page.getByRole("heading", { level: 1, name: "Calzado deportivo" })).toBeVisible();
+    await expect(page.getByText("Versión del esquema: 4")).toBeVisible();
+    await expect(page.getByRole("button", { name: /desactivar|asociar|reactivar/i })).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  });
+
   test("CA-01 y CA-07: asocia caracteristica activa indicando condicion e incrementa schema_version", async () => {
     const tipo = await productTypeService.crear({ nombre: "Zapatilla Trail QA" });
     expect(tipo.schemaVersion).toBe(0);

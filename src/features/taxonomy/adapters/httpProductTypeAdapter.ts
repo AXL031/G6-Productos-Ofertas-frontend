@@ -25,7 +25,7 @@ function object(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-async function boundedRequest(
+export async function boundedTaxonomyRequest(
   transport: TaxonomyGatewayTransport,
   path: string,
   signal: AbortSignal,
@@ -123,7 +123,7 @@ export function createHttpProductTypeAdapter(
       let hasNextPage = true;
       while (hasNextPage) {
         abort.throwIfAborted();
-        const response = await boundedRequest(
+        const response = await boundedTaxonomyRequest(
           transport,
           `/api/v1/tipos-producto?pagina=${page}&tamanio=${PAGE_SIZE}`,
           abort,

@@ -33,9 +33,10 @@ export function TaxonomyModeGate({ children }: { children: ReactNode }) {
         {children}
       </>
     );
+  const productTypeSchemaPath = /^\/tipos-producto\/[^/]+\/esquema$/.test(pathname);
   if (
     mode === "api" &&
-    pathname === "/tipos-producto" &&
+    (pathname === "/tipos-producto" || productTypeSchemaPath) &&
     isTaxonomyGatewayConfigured()
   )
     return children;
