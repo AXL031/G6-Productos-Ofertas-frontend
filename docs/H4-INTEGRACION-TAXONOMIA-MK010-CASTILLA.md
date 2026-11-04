@@ -10,7 +10,8 @@ Fecha: 2026-11-04. Estado de esta entrega: adaptador frontend implementado y val
 | Frontend PR #65 | `715ae909b1fc8cf45598c863f787b284dd2367ec` | Commit de López preservado mediante `git cherry-pick -x`. |
 | Commit recuperado | `3378f19` | Único conflicto en README; se conservaron los cambios actuales de `master` y la fila nueva de Taxonomía. |
 | Rama de trabajo | `castilla-mk010-gateway-h4` | Nombre alternativo: Git ya contiene la rama local `castilla`, por lo que no admite `castilla/mk010-gateway-h4` como referencia anidada. |
-| Docs consultados | `cb7eec179f812d38929e20c5ab6f7a77139c4090` | OpenAPI, SPEC/HU/FLOW-010 y fuentes UX locales. |
+| Docs consultados al implementar | `cb7eec179f812d38929e20c5ab6f7a77139c4090` | OpenAPI, SPEC/HU/FLOW-010 y fuentes UX locales. |
+| OpenAPI de Docs contrastado en esta actualización | `80f208978c2c703e2b2d62064112365e7b9e1677` | `master` remoto, `contratos/http/openapi.yaml`; solo se actualizaron estas notas, sin cambiar adaptador ni DTOs. |
 | Backend consultado | `5abfffc9b86306df87d19695817aa678588e0341` | Solo lectura para el contrato y guías. No se modificó el repositorio Backend. |
 
 PR #65 permanece abierta e intacta. PR #63 no fue modificada. El checkout frontend preexistente `feat/taxonomy-gateway` con siete archivos locales modificados se conservó sin cambios.
@@ -26,9 +27,13 @@ PR #65 permanece abierta e intacta. PR #63 no fue modificada. El checkout fronte
 
 ## Contrato y seguridad pendientes
 
-El OpenAPI de Docs en el SHA citado define `listarTiposProducto` como `userBearer`; `TipoProductoAdmin.estado` referencia `EstadoEntidad` (`ACTIVO`, `INACTIVO`). Backend debe homologar cualquier discrepancia del runtime del provider antes de admitir nuevos estados. En particular, el frontend rechaza estados no publicados; la lista no puede mostrar `PENDING_DEACTIVATION` hasta que Docs publique un enum específico y se acuerde su forma con el owner Taxonomy.
+En el OpenAPI actual de Docs (`80f208978c2c703e2b2d62064112365e7b9e1677`), `GET /tipos-producto` (`listarTiposProducto`) declara `userBearer` y `serviceBearer` como alternativas de seguridad. El esquema `userBearer` describe un JWT humano; `serviceBearer`, un JWT de servicio con audiencia `api-productos` y el scope declarado por operación. Para esta ruta figuran `x-required-scope: catalogo:leer`, `x-allowed-client-ids: [modulo-productos]` y `x-scope-registration-status: pending-security-registration`. El OpenAPI define requisitos y estado documental, pero no acredita que exista una credencial, JWT, grant o registro efectivo. La integración con credenciales/grants reales no se ha comprobado.
 
-La política H4 `RESTRICTED_DEMO` y Backend #144 fueron leídos. Esta rama no implementa bypass, token técnico, acceso anónimo ni secretos. La prueba positiva con JWT G7 real, el grant del Gateway y la homologación de cualquier divergencia de estado siguen pendientes.
+`TipoProductoAdmin.estado` referencia `EstadoEntidad`, que solo publica `ACTIVO` e `INACTIVO`. `PENDING_DEACTIVATION` aparece en el OpenAPI actual en el esquema de resultado de verificación de desactivación; no pertenece al enum de `TipoProductoAdmin.estado`. El runtime de Backend puede devolver ese estado al listar tipos, por lo que existe una discrepancia entre el provider y el contrato publicado. El adaptador de frontend conserva el rechazo de estados no publicados: no aceptará `PENDING_DEACTIVATION` hasta que el owner de Taxonomía y Docs homologuen qué estado devuelve el listado y cómo queda reflejado en el contrato.
+
+La segunda discrepancia es `schemaVersion`: el OpenAPI actual permite enteros desde 0 (`minimum: 0`) en `TipoProductoAdmin`, mientras que Backend exige un entero positivo para el tipo. El adaptador mantiene esa validación positiva. Corresponde a Backend/Docs homologar el mínimo contractual y alinear la regla antes de admitir `0`; no se cambia unilateralmente el frontend para relajarla.
+
+La política H4 `RESTRICTED_DEMO` y Backend #144 fueron leídos. Esta rama no implementa bypass, token técnico, acceso anónimo ni secretos. La prueba positiva con JWT G7 real, la verificación del grant del Gateway y la homologación de ambas discrepancias contractuales siguen pendientes.
 
 ## Validaciones locales
 

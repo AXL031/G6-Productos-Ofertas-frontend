@@ -104,6 +104,7 @@ La tabla resume lo que muestran el código y la configuración de esta rama; la 
 
 | Área | Estado en el frontend |
 |---|---|
+| Productos y variantes/SKU | Mock explícito o adaptadores HTTP por Gateway configurado. Integración administrativa parcial por campos/lecturas contractuales ausentes; errores visibles y sin fallback. Pruebas reales de fase 1 pendientes. |
 | Taxonomía (categorías, características, tipos, marcas y SEO) | En `mock` se muestra un aviso de datos simulados. En `api`, solo el listado de tipos de producto tiene adaptador Gateway; valida contenido y paginación, cancela y limita las consultas, y puede renovar una vez la sesión G7 para reintentar un GET con `TOKEN_INVALIDO`. Las demás pantallas siguen bloqueadas y no hay fallback a mocks. La homologación del contrato y la prueba Gateway real siguen pendientes. Ver [inventario de Taxonomía](docs/INVENTARIO_TAXONOMIA_GATEWAY_41.md). |
 | Precios y programaciones/importación | Flujos de demostración mock. El modo `api` requiere un adapter; la implementación predeterminada falla explícitamente, sin fallback. Las operaciones de archivo no acreditan procesamiento comercial de Backend. |
 | Auditoría de precios | Listado, detalle y exportación de demostración mock. Las ediciones confirmadas de Pricing incorporan asientos simulados por sesión de navegador; recargar conserva los asientos emitidos. El runtime permite inyección, pero no incluye provider API predeterminado. Los archivos disponibles son muestras. |
