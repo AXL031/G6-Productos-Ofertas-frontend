@@ -39,8 +39,9 @@ de herramientas del plan Starter. No se declara verificación de Figma.
   incluidos Catálogo/SKU, Taxonomía, Pricing/Auditoría, Promotions/Cupones/
   Recomendaciones, Bulk, Inventario, Combos y rutas desconocidas administrativas.
 - `/login` queda fuera del shell. Solo se monta el contenido privado tras obtener
-  un token de la sesión; MFA no cuenta como autenticación. La validación también
-  ocurre al navegar y al vencer el acceso; mientras renueva se retira el contenido.
+  un token de la sesión; MFA no cuenta como autenticación. La validación ocurre
+  al entrar y al vencer el acceso. La navegación de una sesión ya validada conserva
+  el shell montado; no se reinicia la validación por cada location.key.
 - El retorno admite únicamente rutas administrativas registradas; URLs externas,
   rutas desconocidas, login y demo pública vuelven a `/precios`. No se infieren
   roles ni grants: la autorización de cada operación permanece en sus providers.
@@ -217,3 +218,69 @@ No se marca VALIDATED ni homologación. Las seis omisiones corresponden a prueba
 que exigen runners externos; no son seis PASS. El PR se entrega para revisión,
 sin merge ni despliegue. La estabilidad de los tres casos con cuatro workers y
 la CI remota permanecen pendientes; la repetición serial no sustituye esa evidencia.
+
+
+## Corrección de ajuste y navegación — 06/11/2026
+
+Alcance solicitado: conservar el frontend existente, limitando los cambios al
+login, la identidad de sesión y el cierre de sesión. Comparado con `4d1b859`, las
+páginas de los módulos, el menú y `productRoutes.tsx` no tienen diferencias. El
+shell conserva su diseño; la adición anterior es la identidad y el botón logout.
+Esta corrección no modifica páginas, servicios, reglas, contratos ni datos de
+los módulos, ni cambia la política MFA de G7.
+
+Se reprodujeron tres regresiones con pruebas nuevas sobre `674091f`: el shell
+perdía sus nodos al navegar, el login excedía la altura de ventanas bajas y MFA
+podía necesitar desplazamiento. Las tres pruebas fallaron antes de la corrección.
+
+- Se elimina el mínimo fijo de 780 px de los paneles del login. Su espaciado se
+  adapta a la altura disponible manteniendo los dos paneles desktop, tipografía,
+  colores y controles. No se ocultan el scroll ni los campos mediante clipping.
+- En MFA, las instrucciones sustituyen la descripción de credenciales, evitando
+  repetir texto y consumir altura adicional.
+- El guard vincula su validación a la instancia de sesión y al usuario, en lugar
+  de `location.key`. Conserva el shell al navegar, pero mantiene el bloqueo inicial,
+  la expiración, la invalidación y el logout.
+- La prueba de navegación marca los nodos reales de encabezado y menú y comprueba
+  que sean los mismos tras seis cambios de sección. No se modifican las transiciones
+  ni los estados de carga de las páginas existentes.
+
+Las pruebas visuales cubren login vacío/error a 1440×900, 1366×768, 1440×720,
+1366×640 y 1440×600; MFA/código vencido a 1440×900/720/640/600. Se comprueba
+altura/ancho de documento sin overflow, botón y pie dentro del viewport, y se
+inspeccionan las capturas. En zoom elevado o ventanas aún menores se conserva el
+flujo natural accesible; no se esconden controles para simular que caben.
+
+Capturas de revisión:
+
+![Login completo a 1366×640](evidencias/login-general-1366x640.png)
+
+![MFA completo, con error, a 1440×600](evidencias/login-mfa-1440x600.png)
+
+Validaciones ejecutadas para esta corrección:
+
+- `npm run typecheck`: PASS.
+- `npm run lint`: PASS.
+- `npm test`: PASS, 462 pruebas unitarias.
+- `VITE_DATA_MODE=api npm run build`: PASS.
+- `VITE_DATA_MODE=mock`, `PLAYWRIGHT_PORT=5188`,
+  `npm run test:e2e -- tests/auth-general.spec.ts tests/promotions-session.spec.ts tests/promotions-session-ui.spec.ts tests/promotions-startup.spec.ts tests/foundation.spec.ts --workers=1 --reporter=line`:
+  PASS, 53 pruebas en 2,0 minutos.
+- Las tres regresiones nuevas fallaron antes de la corrección y pasaron después.
+  Las 53 incluyen bloqueo sin sesión, MFA, refresh/401/403, expiración, logout,
+  ausencia de persistencia, demo pública, teclado y geometría Foundation.
+- Revisión visual de login a 1366×640 y MFA con error a 1440×600: PASS, sin scroll,
+  controles recortados ni superpuestos. Se conserva la revisión canónica 1440×900.
+- `git diff 4d1b859 --` aplicado a los directorios de páginas de módulos, navegación
+  y `productRoutes.tsx`: sin diferencias.
+
+La suite completa de 577 pruebas no se reejecutó en esta corrección: sus resultados
+anteriores quedan como evidencia histórica en la sección Validación, con sus
+fallos y omisiones explícitos. Tampoco se afirma integración real G7/Gateway ni
+validación Figma nueva.
+
+Archivos de código de esta corrección: `src/app/routes/RequireSession.tsx`,
+`src/features/auth/components/LoginForm.tsx`, `src/features/auth/pages/LoginPage.tsx`
+y `src/features/auth/pages/login.module.css`. Se actualizan las pruebas de
+`tests/auth-general.spec.ts`, README, este informe y tres capturas del login/MFA.
+Estado de esta corrección: UI_COMPLETE; solo ámbito de autenticación.

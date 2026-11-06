@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Button, PasswordInput, Stack, Text, TextInput } from "@mantine/core";
+import { Button, PasswordInput, Stack, TextInput } from "@mantine/core";
 import { IconArrowRight, IconEye, IconEyeOff } from "@tabler/icons-react";
 import { FeedbackAlert } from "../../../components/shared";
 import type { G7Session, SessionView } from "../../promotions/adapters/g7Session";
+import classes from "../pages/login.module.css";
 
 export function LoginForm({ session, view }: { session: G7Session | null; view: SessionView }) {
   const [correo, setCorreo] = useState("");
@@ -25,11 +26,10 @@ export function LoginForm({ session, view }: { session: G7Session | null; view: 
         setVisible(false);
       }
     }}>
-      <Stack gap="lg">
+      <Stack gap="lg" className={classes.fields}>
         {!session && <FeedbackAlert semantic="error" title="Acceso no disponible">El servicio de inicio de sesión no está configurado. No es posible acceder al panel.</FeedbackAlert>}
         {view.notice && <FeedbackAlert semantic="info" title="Sesión">{view.notice}</FeedbackAlert>}
         {view.mfa ? <>
-          <Text>Confirma tu identidad con el código que recibirás por correo.</Text>
           <Button variant="outline" disabled={disabled} onClick={() => { void session?.sendCode(); }}>Enviar código al correo</Button>
           <TextInput ref={codeInput} label="Código de verificación" autoComplete="one-time-code" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required value={codigo} onChange={event => setCodigo(event.currentTarget.value)} disabled={disabled} />
           <Button type="submit" loading={view.busy} disabled={!session}>Verificar código</Button>

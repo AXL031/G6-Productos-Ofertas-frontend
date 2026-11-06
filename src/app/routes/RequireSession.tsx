@@ -13,8 +13,10 @@ export function RequireSession() {
 function AuthenticatedRoutes() {
   const { session, view } = useAuthSession();
   const location = useLocation();
-  const [validated, setValidated] = useState<string | null>(null);
-  const key = location.key;
+  const [validated, setValidated] = useState<{
+    session: typeof session;
+    userId: string;
+  } | null>(null);
   const userId = view.user?.id;
   useEffect(() => {
     if (!session || !userId) return;
@@ -24,17 +26,17 @@ function AuthenticatedRoutes() {
       setValidated(null);
       const token = await session.getAccessToken(controller.signal);
       if (controller.signal.aborted) return;
-      if (token) setValidated(key);
+      if (token) setValidated({ session, userId });
       const expiresAt = session.snapshot().expiresAt;
       if (token && expiresAt) timer = setTimeout(() => { void validate().catch(() => {}); }, Math.max(1, expiresAt - Date.now()));
     };
     void validate().catch(() => {});
     return () => { controller.abort(); clearTimeout(timer); };
-  }, [session, userId, key]);
+  }, [session, userId]);
   if (!view.user || !session) {
     return <Navigate to="/login" replace state={{ from: location.pathname + location.search + location.hash }} />;
   }
-  if (validated !== key) {
+  if (validated?.session !== session || validated?.userId !== userId) {
     return <p role="status">Validando sesión…</p>;
   }
   return <Outlet />;

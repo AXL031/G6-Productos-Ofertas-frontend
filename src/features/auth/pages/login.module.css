@@ -6,7 +6,7 @@
 }
 .brandPanel {
   position: relative;
-  min-height: 780px;
+  min-height: 0;
   overflow: hidden;
   background: var(--po-ink);
   color: var(--po-cloud);
@@ -38,15 +38,39 @@
 .description { margin-top: 32px; font-size: 18px; line-height: 26px; max-width: 480px; }
 .watermark { position: absolute; bottom: 8%; left: 4.5vw; font-family: var(--mantine-font-family-headings); font-size: 208px; line-height: .8; color: var(--po-cloud); opacity: .08; pointer-events: none; }
 .formPanel {
-  min-height: 780px;
+  min-height: 100svh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 88px 32px;
+  padding: clamp(16px, 5svh, 88px) 32px;
   border-top: 8px solid var(--po-primary);
 }
 .card { width: min(100%, 676px); padding: 56px; & .accent { width: 48px; } }
 .welcome { font-size: 14px; font-weight: 600; color: var(--po-secondary); margin-bottom: 16px; }
 .intro { color: var(--po-secondary); margin-top: 8px; margin-bottom: 32px; }
 .copyright { margin-top: 56px; color: var(--po-secondary); font-size: 12px; line-height: 16px; text-align: center; }
+.fields { gap: 24px; }
+
+/* Desktop windows can have less vertical space without changing the two panels. */
+@media (max-height: 800px) {
+  .card { padding: 24px; }
+  .card .accent { margin-bottom: 16px; }
+  .welcome { margin-bottom: 8px; }
+  .intro { margin-bottom: 16px; }
+  .fields { gap: 16px; }
+  .copyright { margin-top: 16px; }
+  .brandBar { top: 32px; }
+  .brandCopy { top: 30%; }
+  .description { margin-top: 24px; }
+  .watermark { font-size: min(208px, 22svh); bottom: 6%; }
+}
+
+@media (max-height: 680px) {
+  .formPanel { padding-block: 16px; }
+  .card { padding: 16px; }
+  .card .accent { margin-bottom: 8px; }
+  .intro { margin-bottom: 8px; }
+  .fields { gap: 8px; }
+  .description { margin-top: 16px; }
+}

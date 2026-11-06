@@ -232,8 +232,9 @@ de contraseña. La identidad mostrada procede de G7; los permisos efectivos los
 verifican Gateway y cada servicio, sin inferir grants por una ruta del navegador.
 
 Access token, refresh token y desafío viven solo en memoria. Recargar exige login.
-La renovación existente se comparte entre peticiones; el guard también comprueba
-la sesión al navegar y al vencer el acceso, retirando el contenido mientras valida.
+La renovación existente se comparte entre peticiones; el guard comprueba la
+sesión al entrar y al vencer el acceso. Cambiar de sección conserva el shell
+montado y no reinicia la validación de la misma sesión.
 El logout del encabezado borra la sesión local aunque falle la red. Las respuestas
 tardías no la restauran. Los GET contractuales pueden renovar una vez ante
 `401 TOKEN_INVALIDO`; las escrituras no se reenvían y un 403 no renueva sesión.

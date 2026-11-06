@@ -59,6 +59,72 @@ async function login(page: Page) {
   await page.getByRole("textbox", { name: "Contraseña", exact: true }).fill("isolated-password");
   await page.getByRole("button", { name: "Ingresar al panel", exact: true }).click();
 }
+async function expectLoginInsideViewport(page: Page) {
+  await page.evaluate(() => document.fonts.ready);
+  expect(await page.evaluate(() => ({
+    width: document.documentElement.scrollWidth - innerWidth,
+    height: document.documentElement.scrollHeight - innerHeight,
+  }))).toEqual({ width: 0, height: 0 });
+  const viewport = page.viewportSize()!;
+  for (const control of [page.getByRole("heading", { level: 1 }), page.locator("footer"), page.getByRole("button", { name: /Ingresar al panel|Verificar código/, exact: true })]) {
+    const box = await control.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.y).toBeGreaterThanOrEqual(0);
+    expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height);
+  }
+}
+test("el shell autenticado permanece montado al cambiar repetidamente de sección", async ({ page }) => {
+  await page.goto("/combos");
+  await login(page);
+  const navigation = page.getByRole("navigation", { name: "Navegación de la aplicación", exact: true });
+  await expect(navigation).toBeVisible();
+  await page.locator(".mantine-AppShell-header").evaluate(element => element.setAttribute("data-auth-shell-probe", "header"));
+  await navigation.evaluate(element => element.setAttribute("data-auth-shell-probe", "navigation"));
+  for (const [label, path] of [
+    ["Control de stock", "/inventario"], ["Consultar precios", "/precios"],
+    ["Gestión de combos", "/combos"], ["Control de stock", "/inventario"],
+    ["Consultar precios", "/precios"], ["Gestión de combos", "/combos"],
+  ]) {
+    await navigation.getByRole("link", { name: label, exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`${path}$`));
+    await expect(page.locator('[data-auth-shell-probe="header"]')).toBeVisible();
+    await expect(page.locator('[data-auth-shell-probe="navigation"]')).toBeVisible();
+  }
+  expect(calls.filter(call => call.path.endsWith("/login"))).toHaveLength(1);
+});
+test("login y error de credenciales caben en ventanas desktop de menor altura", async ({ page }) => {
+  test.setTimeout(60000);
+  for (const [width, height] of [[1440, 900], [1366, 768], [1440, 720], [1366, 640], [1440, 600]]) {
+    await page.setViewportSize({ width: width!, height: height! });
+    await page.goto("/login");
+    await expect(page.getByRole("heading", { name: "Iniciar sesión", exact: true })).toBeVisible();
+    await expectLoginInsideViewport(page);
+    await page.screenshot({ path: test.info().outputPath(`login-inicial-${width}x${height}.png`) });
+    failure = "CREDENCIALES_INVALIDAS";
+    await login(page);
+    await expect(page.getByRole("status")).toContainText("El correo o la contraseña no son correctos");
+    await expectLoginInsideViewport(page);
+    await page.screenshot({ path: test.info().outputPath(`login-${width}x${height}.png`) });
+  }
+});
+test("MFA y código vencido caben completos en ventanas desktop de menor altura", async ({ page }) => {
+  test.setTimeout(60000);
+  mfa = true;
+  for (const height of [900, 720, 640, 600]) {
+    failure = "";
+    await page.setViewportSize({ width: 1440, height });
+    await page.goto("/login");
+    await login(page);
+    await expect(page.getByLabel("Código de verificación")).toBeEnabled();
+    await expectLoginInsideViewport(page);
+    failure = "OTP_EXPIRADO";
+    await page.getByLabel("Código de verificación").fill("123456");
+    await page.getByRole("button", { name: "Verificar código", exact: true }).click();
+    await expect(page.getByRole("status")).toContainText("El código venció");
+    await expectLoginInsideViewport(page);
+    await page.screenshot({ path: test.info().outputPath(`mfa-1440x${height}.png`) });
+  }
+});
 test("la demo pública aprobada mantiene lectura aislada y no abre administración", async ({ page }) => {
   await page.route("**/src/app/routes/AppRoutes.tsx*", async route => {
     const response = await route.fetch();

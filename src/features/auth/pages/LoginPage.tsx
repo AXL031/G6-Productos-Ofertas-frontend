@@ -40,7 +40,9 @@ export function LoginPage() {
           <div className={classes.accent} aria-hidden="true" />
           <Text className={classes.welcome}>BIENVENIDO DE NUEVO</Text>
           <Title order={1}>{view.mfa ? "Verificar identidad" : "Iniciar sesión"}</Title>
-          <Text className={classes.intro}>Ingresa tus credenciales para acceder al panel de administración de Inka Athletics.</Text>
+          <Text className={classes.intro}>{view.mfa
+            ? "Confirma tu identidad con el código que recibirás por correo."
+            : "Ingresa tus credenciales para acceder al panel de administración de Inka Athletics."}</Text>
           <LoginForm session={session} view={view} />
         </Paper>
         <footer className={classes.copyright}>© 2026 INKA ATHLETICS · PRODUCTOS Y OFERTAS</footer>
