@@ -1,0 +1,62 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { loginDestination } from "../../app/routes/loginDestination";
+import { AuthSessionContext } from "../../app/config/AuthSessionContext";
+import { PromotionSessionContext } from "../../app/config/PromotionSessionContext";
+import { createOptionalAuthSession } from "../../app/config/authSessionRuntime";
+import { createPromotionSessionRuntime } from "../promotions/services/promotionSessionRuntime";
+import { createAuthenticatedCatalogTransport } from "../catalog/adapters/authenticatedCatalogTransport";
+
+afterEach(() => vi.restoreAllMocks());
+describe("una sola sesión transversal", () => {
+  it("conserva el mismo contexto y la misma instancia en Promociones", () => {
+    expect(PromotionSessionContext).toBe(AuthSessionContext);
+    const session = createOptionalAuthSession("https://g7.example.test/api/v1")!;
+    expect(createPromotionSessionRuntime("https://gateway.example.test", "https://g7.example.test/api/v1", session).session).toBe(session);
+  });
+  it.each([undefined, "", "invalid", "http://remote.test", "https://user:secret@g7.test"])("configuración %s falla cerrada", base => {
+    expect(createOptionalAuthSession(base)).toBeNull();
+  });
+});
+describe("retorno a rutas registradas", () => {
+  it.each([undefined, null, {}, "https://evil.test", "//evil.test", "/\\evil.test", "/login", "/demo/g6/productos", "/no-existe", "/%2f%2fevil.test"])("rechaza %s", value => {
+    expect(loginDestination(value)).toBe("/precios");
+  });
+  it.each(["/productos", "/productos/nuevo", "/combos?vista=lista", "/precios/auditoria"])("conserva %s", value => {
+    expect(loginDestination(value)).toBe(value);
+  });
+});
+const dto = (version = 1) => ({
+  accessToken: `eyJhbGciOiJSUzI1NiJ9.payload.signature${version}`,
+  refreshToken: `isolated-refresh-${version}`, tokenType: "Bearer", expiresIn: 900,
+  usuario: { id: "11111111-1111-4111-8111-111111111111", nombreCompleto: "Prueba", correo: "test@example.test", roles: ["GESTOR_COMERCIAL"] },
+});
+describe("Catálogo consume la sesión existente sin repetir escrituras", () => {
+  it.each(["GET", "POST", "PATCH"] as const)("401 en %s", async method => {
+    let reads = 0;
+    const fetcher = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const path = String(input);
+      if (path.endsWith("/auth/login")) return Response.json(dto());
+      if (path.endsWith("/auth/refresh")) return Response.json(dto(2));
+      reads++;
+      return reads === 1 ? Response.json({ code: "TOKEN_INVALIDO" }, { status: 401 }) : Response.json({ items: [] });
+    });
+    const session = createOptionalAuthSession("https://g7.example.test/api/v1")!;
+    await session.login("test@example.test", "password");
+    const transport = createAuthenticatedCatalogTransport("https://gateway.example.test", session);
+    const response = await transport.request("/api/v1/productos", { method, signal: new AbortController().signal, headers: {} });
+    expect(reads).toBe(method === "GET" ? 2 : 1);
+    expect(response.status).toBe(method === "GET" ? 200 : 401);
+    expect(session.snapshot().user !== null).toBe(method === "GET");
+    const requests = fetcher.mock.calls.filter(([url]) => String(url).includes("gateway"));
+    expect(requests[0]?.[1]?.headers).toMatchObject({ Authorization: `Bearer ${dto().accessToken}` });
+  });
+  it("403 conserva sesión y no renueva ni repite", async () => {
+    const fetcher = vi.spyOn(globalThis, "fetch").mockImplementation(async input => String(input).endsWith("/auth/login") ? Response.json(dto()) : Response.json({ code: "SCOPE_INSUFICIENTE" }, { status: 403 }));
+    const session = createOptionalAuthSession("https://g7.example.test")!;
+    await session.login("test@example.test", "password");
+    const response = await createAuthenticatedCatalogTransport("https://gateway.example.test", session).request("/api/v1/productos", { method: "GET", signal: new AbortController().signal, headers: {} });
+    expect(response.status).toBe(403);
+    expect(session.snapshot().user).not.toBeNull();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+});

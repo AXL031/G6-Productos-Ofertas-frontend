@@ -1,5 +1,7 @@
 import { Suspense } from "react";
-import { AppShell, Box, Group, Stack, Text } from "@mantine/core";
+import { AppShell, Box, Button, Group, Stack, Text } from "@mantine/core";
+import { IconLogout } from "@tabler/icons-react";
+import { useAuthSession } from "../config/useAuthSession";
 import { Outlet } from "react-router-dom";
 import { tokens } from "../../theme/tokens";
 import brandLogo from "../../assets/brand/INKA_ATHLETICS.svg";
@@ -9,6 +11,7 @@ import { CommercialModeGate } from "../config/CommercialModeGate";
 import { TaxonomyModeGate } from "../config/TaxonomyModeGate";
 
 export function ApplicationShell() {
+  const { session, view } = useAuthSession();
   return (
     <AppShell
       header={{ height: tokens.layout.header }}
@@ -27,6 +30,10 @@ export function ApplicationShell() {
             />
           </Box>
           <Text size="sm">Productos y Ofertas</Text>
+          {view.user && <Group ml="auto" gap="md">
+            <Text size="sm">Sesión de {view.user.nombreCompleto}</Text>
+            <Button variant="outline" leftSection={<IconLogout size={20} aria-hidden="true" />} onClick={() => { void session?.logout(); }}>Cerrar sesión</Button>
+          </Group>}
         </Group>
       </AppShell.Header>
       <AppShell.Navbar p="md" bg="var(--po-surface)" className={classes.navbar}>

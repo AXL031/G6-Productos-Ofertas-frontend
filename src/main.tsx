@@ -19,10 +19,13 @@ import { PricingProvider } from "./features/pricing/components/PricingProvider";
 import { resolveDataMode } from "./app/config/dataMode";
 import { DataModeContext } from "./app/config/DataModeContext";
 import { PromotionApiContext } from "./app/config/PromotionApiContext";
-import { PromotionSessionContext } from "./app/config/PromotionSessionContext";
+import { AuthSessionContext } from "./app/config/AuthSessionContext";
+import { createOptionalAuthSession } from "./app/config/authSessionRuntime";
+import { secureBase } from "./features/promotions/adapters/g7Session";
+import { createAuthenticatedCatalogTransport } from "./features/catalog/adapters/authenticatedCatalogTransport";
 import { CatalogServicesContext } from "./features/catalog/services/CatalogServicesContext";
 import { getCatalogServices } from "./features/catalog/services/catalogServices";
-import { createOptionalCatalogHttpServices } from "./features/catalog/services/catalogHttpRuntime";
+import { createCatalogHttpServices, createOptionalCatalogHttpServices } from "./features/catalog/services/catalogHttpRuntime";
 import { createCombosRuntime } from "./features/combos/services/combosService";
 import { CombosProvider } from "./features/combos/components/CombosProvider";
 import { BulkRepositoryContext } from "./features/bulk/services/BulkRepositoryContext";
@@ -39,21 +42,31 @@ async function start() {
     string | undefined;
   const securityApiBase = import.meta.env.VITE_G7_API_BASE as
     string | undefined;
+  const session = createOptionalAuthSession(securityApiBase);
+  let gateway: string | undefined;
+  try {
+    if (gatewayOrigin) gateway = secureBase(gatewayOrigin, true);
+  } catch { /* Each unavailable provider keeps its explicit configuration error. */ }
   const promotions =
-    mode === "api" && gatewayOrigin && securityApiBase
+    mode === "api" && gatewayOrigin && securityApiBase && session
       ? (
           await import("./features/promotions/services/promotionSessionRuntime")
-        ).createOptionalPromotionSessionRuntime(gatewayOrigin, securityApiBase)
+        ).createOptionalPromotionSessionRuntime(gatewayOrigin, securityApiBase, session)
       : null;
-  if (mode === "api" && gatewayOrigin && promotions) {
+  if (mode === "api" && gateway && session) {
     configureTaxonomyGateway(
-      createAuthenticatedTaxonomyGateway(gatewayOrigin, promotions.session),
+      createAuthenticatedTaxonomyGateway(gateway, session),
     );
   }
   const combosRuntime = await createCombosRuntime(mode, runtime);
-  const catalogServices = (mode === "api" ? createOptionalCatalogHttpServices(gatewayOrigin) : null) ?? getCatalogServices(mode);
-  const bulkRepository = mode === "api" && gatewayOrigin && promotions?.session
-    ? createHttpBulkRepository(createBulkFetchTransport(gatewayOrigin), promotions.session)
+  let catalogServices = (mode === "api" ? createOptionalCatalogHttpServices(gatewayOrigin) : null) ?? getCatalogServices(mode);
+  if (mode === "api" && gateway && session) {
+    catalogServices = createCatalogHttpServices(
+      createAuthenticatedCatalogTransport(gateway, session),
+    );
+  }
+  const bulkRepository = mode === "api" && gateway && session
+    ? createHttpBulkRepository(createBulkFetchTransport(gateway), session)
     : null;
   root.render(
     <StrictMode>
@@ -64,21 +77,17 @@ async function start() {
       >
         <DataModeContext.Provider value={mode}>
           <BulkRepositoryContext.Provider value={bulkRepository}>
-          <CatalogServicesContext.Provider value={catalogServices}>
-            <PricingProvider runtime={runtime}>
-              <PromotionSessionContext.Provider
-                value={promotions?.session ?? null}
-              >
-                <PromotionApiContext.Provider
-                  value={promotions?.services ?? null}
-                >
-                  <CombosProvider mode={mode} runtime={combosRuntime}>
-                    <App />
-                  </CombosProvider>
-                </PromotionApiContext.Provider>
-              </PromotionSessionContext.Provider>
-            </PricingProvider>
-          </CatalogServicesContext.Provider>
+            <CatalogServicesContext.Provider value={catalogServices}>
+              <PricingProvider runtime={runtime}>
+                <AuthSessionContext.Provider value={session}>
+                  <PromotionApiContext.Provider value={promotions?.services ?? null}>
+                    <CombosProvider mode={mode} runtime={combosRuntime}>
+                      <App />
+                    </CombosProvider>
+                  </PromotionApiContext.Provider>
+                </AuthSessionContext.Provider>
+              </PricingProvider>
+            </CatalogServicesContext.Provider>
           </BulkRepositoryContext.Provider>
         </DataModeContext.Provider>
       </MantineProvider>

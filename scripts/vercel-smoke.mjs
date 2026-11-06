@@ -28,15 +28,15 @@ try {
     const heading = page.getByRole("heading", { level: 1 });
     await heading.waitFor();
     const text = await heading.innerText();
-    const expected = path === "/" || path === "/precios" ? /precios/i : path === "/productos" ? /productos/i : path === "/categorias" ? /categor[ií]as/i : /carga|importaci[oó]n/i;
-    assert.match(text, expected, `${path}: pantalla esperada`);
-    assert.doesNotMatch(text, /no encontrad|no disponible|error/i);
-    if (["/", "/precios", "/productos", "/categorias"].includes(path)) await page.getByRole("table").first().waitFor();
+    assert.match(text, /iniciar sesi[oó]n/i, `${path}: login antes del panel`);
+    assert.equal(new URL(page.url()).pathname, "/login");
+    assert.equal(await page.getByRole("navigation").count(), 0);
+    assert.equal(await page.getByRole("table").count(), 0);
     if (path === "/productos") {
       const reload = await page.reload({ waitUntil: "networkidle" });
-      assert(reload?.ok(), "Refresh /productos");
-      await page.getByRole("table").first().waitFor();
-      assert.match(await heading.innerText(), /productos/i);
+      assert(reload?.ok(), "Refresh /login");
+      await heading.waitFor();
+      assert.match(await heading.innerText(), /iniciar sesi[oó]n/i);
     }
     console.log(`PASS ${path}${path === "/productos" ? " + refresh" : ""}`);
   }
@@ -49,7 +49,7 @@ try {
     assert.match(mime, /\.css(?:\?|$)/.test(url) ? /text\/css/ : /javascript/, `MIME de ${new URL(url).pathname}`);
   }
   assert.deepEqual(failures, [], "Errores críticos de arranque/recursos");
-  console.log(`PASS smoke mock: cinco rutas, refresh, ${assets.size} recursos JS/CSS, cero errores; ${base.origin}`);
+  console.log(`PASS smoke de acceso: cinco rutas, refresh, ${assets.size} recursos JS/CSS, cero errores; ${base.origin}`);
 } finally {
   await browser.close();
 }

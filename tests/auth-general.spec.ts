@@ -1,0 +1,180 @@
+import { expect, test, type Page } from "@playwright/test";
+import { createServer, type Server } from "node:http";
+import { once } from "node:events";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+
+// Contract provider isolated on loopback. Real browser fetch, no token injection.
+let provider: Server;
+let base: string;
+let mfa: boolean;
+let failure: string;
+let expiry: number;
+let calls: { path: string; body: Record<string, unknown> }[];
+const dto = {
+  accessToken: "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJpc29sYXRlZCJ9.signature",
+  refreshToken: "isolated-contract-refresh", tokenType: "Bearer", expiresIn: 900,
+  usuario: { id: "11111111-1111-4111-8111-111111111111", nombreCompleto: "Gestora de prueba", correo: "isolated@example.test", roles: ["GESTOR_COMERCIAL"] },
+};
+test.beforeEach(async ({ page }) => {
+  mfa = false; failure = ""; expiry = 900; calls = [];
+  provider = createServer(async (req, res) => {
+    res.setHeader("Access-Control-Allow-Origin", `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? 5173}`);
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    if (req.method === "OPTIONS") { res.writeHead(204).end(); return; }
+    let raw = "";
+    for await (const chunk of req) raw += String(chunk);
+    const body = JSON.parse(raw || "{}") as Record<string, unknown>;
+    const path = req.url ?? "";
+    calls.push({ path, body });
+    res.setHeader("Content-Type", "application/json");
+    if (path.endsWith("/logout")) { req.socket.destroy(); return; }
+    if (failure) { res.writeHead(failure === "UNAVAILABLE" ? 503 : failure === "OTP_EXPIRADO" ? 410 : 401).end(JSON.stringify({ code: failure, detail: "SENSITIVE_DETAIL" })); return; }
+    if (path.endsWith("/login") && mfa) { res.end(JSON.stringify({ mfaRequerido: true, challengeToken: "isolated-challenge", expiraEn: 300 })); return; }
+    if (path.endsWith("/solicitar")) { res.writeHead(202).end("{}"); return; }
+    res.end(JSON.stringify({ ...dto, expiresIn: expiry, ...(path.endsWith("/refresh") ? { refreshToken: `isolated-rotation-${calls.length}` } : {}) }));
+  });
+  provider.listen(0, "127.0.0.1");
+  await once(provider, "listening");
+  const address = provider.address();
+  if (!address || typeof address === "string") throw new Error("NO_PORT");
+  base = `http://127.0.0.1:${address.port}/api/v1`;
+  await page.route("**/src/main.tsx*", async route => {
+    const response = await route.fetch();
+    let body = await response.text();
+    for (const [key, value] of [["VITE_DATA_MODE", "api"], ["VITE_GATEWAY_ORIGIN", `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? 5173}`], ["VITE_G7_API_BASE", base]]) {
+      body = body.replaceAll(`import.meta.env.${key}`, JSON.stringify(value));
+    }
+    await route.fulfill({ response, body });
+  });
+});
+test.afterEach(async () => {
+  provider.closeAllConnections();
+  await new Promise<void>(resolve => provider.close(() => resolve()));
+});
+async function login(page: Page) {
+  await page.getByRole("textbox", { name: "Correo electrónico", exact: true }).fill("isolated@example.test");
+  await page.getByRole("textbox", { name: "Contraseña", exact: true }).fill("isolated-password");
+  await page.getByRole("button", { name: "Ingresar al panel", exact: true }).click();
+}
+test("la demo pública aprobada mantiene lectura aislada y no abre administración", async ({ page }) => {
+  await page.route("**/src/app/routes/AppRoutes.tsx*", async route => {
+    const response = await route.fetch();
+    const body = (await response.text()).replaceAll("import.meta.env.VITE_G6_READ_DEMO", '"true"');
+    await route.fulfill({ response, body });
+  });
+  await page.route("**/api/v1/**", route => route.abort());
+  await page.goto("/demo/g6/productos");
+  await expect(page.getByRole("heading", { name: "G6 · Productos y Ofertas", exact: true })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Navegación de la aplicación" })).toHaveCount(0);
+  expect(calls).toEqual([]);
+  await page.goto("/productos");
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole("navigation")).toHaveCount(0);
+});
+for (const path of ["/", "/productos", "/productos/nuevo", "/precios", "/inventario", "/combos", "/carga-masiva", "/categorias", "/promociones", "/cupones", "/recomendaciones", "/precios/auditoria"]) {
+  test(`sin sesión bloquea ${path} antes de montar el shell`, async ({ page }) => {
+    await page.goto(path);
+    await expect(page).toHaveURL(/\/login$/);
+    await expect(page.getByRole("heading", { name: "Iniciar sesión", exact: true })).toBeVisible();
+    await expect(page.getByRole("navigation")).toHaveCount(0);
+    expect(calls).toEqual([]);
+  });
+}
+test("login conserva destino interno; logout sin red, atrás y recarga no recuperan sesión", async ({ page }) => {
+  await page.goto("/combos?vista=lista");
+  await login(page);
+  await expect(page).toHaveURL(/\/combos\?vista=lista$/);
+  await expect(page.getByText("Sesión de Gestora de prueba", { exact: true })).toBeVisible();
+  await page.evaluate(() => { history.pushState({}, "", "/login"); dispatchEvent(new PopStateEvent("popstate")); });
+  await expect(page).toHaveURL(/\/precios$/);
+  await page.getByRole("button", { name: "Cerrar sesión", exact: true }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole("navigation")).toHaveCount(0);
+  await login(page);
+  await expect(page.getByRole("navigation", { name: "Navegación de la aplicación" })).toBeVisible();
+  await page.reload();
+  await expect(page).toHaveURL(/\/login$/);
+  expect(await page.evaluate(() => JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage }, cookie: document.cookie }))).not.toMatch(/isolated|eyJ|refreshToken|challengeToken/);
+});
+test("validaciones requeridas, ojo, teclado y captura 1440", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByRole("button", { name: "Ingresar al panel", exact: true }).click();
+  expect(calls).toEqual([]);
+  await page.getByRole("textbox", { name: "Contraseña", exact: true }).fill("secret");
+  await page.getByRole("button", { name: "Mostrar contraseña" }).click();
+  await expect(page.getByRole("textbox", { name: "Contraseña", exact: true })).toHaveAttribute("type", "text");
+  await page.getByRole("button", { name: "Ocultar contraseña" }).click();
+  await expect(page.getByRole("textbox", { name: "Contraseña", exact: true })).toHaveAttribute("type", "password");
+  await page.getByRole("textbox", { name: "Contraseña", exact: true }).fill("");
+  await page.getByRole("textbox", { name: "Correo electrónico", exact: true }).focus();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("textbox", { name: "Contraseña", exact: true })).toBeFocused();
+  expect(await page.getByRole("textbox", { name: "Contraseña", exact: true }).evaluate(el => getComputedStyle(el).outlineColor)).toBe("rgb(67, 97, 238)");
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "Mostrar contraseña" })).toBeFocused();
+  await page.keyboard.press("Space");
+  await expect(page.getByRole("textbox", { name: "Contraseña", exact: true })).toHaveAttribute("type", "text");
+  await page.keyboard.press("Space");
+  await expect(page.getByRole("textbox", { name: "Contraseña", exact: true })).toHaveAttribute("type", "password");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(1440);
+  await page.getByRole("heading", { level: 1 }).click();
+  await page.screenshot({ path: "docs/evidencias/login-general-1440.png", fullPage: true });
+  const mockup = resolve("MK-LOGIN/index.html");
+  if (existsSync(mockup)) {
+    await page.goto(pathToFileURL(mockup).href);
+    await page.screenshot({ path: "docs/evidencias/login-referencia-1440.png", fullPage: true });
+  }
+});
+test("renovación y expiración sin actividad retiran el contenido administrativo", async ({ page }) => {
+  expiry = 1;
+  await page.goto("/combos");
+  await login(page);
+  await expect(page.getByText("Sesión de Gestora de prueba", { exact: true })).toBeVisible();
+  await expect.poll(() => calls.filter(call => call.path.endsWith("/refresh")).length).toBeGreaterThan(0);
+  failure = "REFRESCO_INVALIDO";
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole("navigation")).toHaveCount(0);
+  await expect(page.getByRole("status")).toContainText("Tu sesión terminó");
+});
+test("credenciales incorrectas y servicio indisponible conservan acceso bloqueado", async ({ page }) => {
+  await page.goto("/login");
+  failure = "CREDENCIALES_INVALIDAS";
+  await login(page);
+  await expect(page.getByRole("status")).toContainText("El correo o la contraseña no son correctos");
+  await expect(page.getByText("SENSITIVE_DETAIL")).toHaveCount(0);
+  failure = "UNAVAILABLE";
+  await login(page);
+  await expect(page.getByRole("status")).toContainText("No pudimos conectar con Seguridad");
+  await expect(page.getByRole("navigation")).toHaveCount(0);
+});
+test("MFA pendiente, código inválido/vencido y confirmación con la misma sesión", async ({ page }) => {
+  mfa = true;
+  await page.goto("/combos");
+  await login(page);
+  await expect(page.getByLabel("Código de verificación")).toBeFocused();
+  await expect(page.getByRole("navigation")).toHaveCount(0);
+  await page.getByRole("button", { name: "Enviar código al correo" }).click();
+  await expect(page.getByRole("status")).toContainText("Enviamos el código");
+  for (const [code, message] of [["CODIGO_INVALIDO", "El código no es correcto"], ["OTP_EXPIRADO", "El código venció"]]) {
+    failure = code!;
+    await page.getByLabel("Código de verificación").fill("000000");
+    await page.getByRole("button", { name: "Verificar código" }).click();
+    await expect(page.getByRole("status")).toContainText(message!);
+    await expect(page.getByRole("navigation")).toHaveCount(0);
+  }
+  failure = "TOKEN_INVALIDO";
+  await page.getByLabel("Código de verificación").fill("000000");
+  await page.getByRole("button", { name: "Verificar código" }).click();
+  await expect(page.getByRole("status")).toContainText("El desafío terminó");
+  failure = "";
+  await login(page);
+  await page.getByLabel("Código de verificación").fill("123456");
+  await page.getByRole("button", { name: "Verificar código" }).click();
+  await expect(page).toHaveURL(/\/combos$/);
+  expect(calls.filter(call => call.path.endsWith("/verificar"))).toHaveLength(4);
+});

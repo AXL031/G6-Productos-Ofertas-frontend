@@ -23,7 +23,7 @@ export interface TaxonomySession {
 
 export class TaxonomySessionRequiredError extends Error {
   constructor() {
-    super("Inicia sesión en Promociones y vuelve a intentar la consulta de Taxonomía.");
+    super("Inicia sesión y vuelve a intentar la consulta de Taxonomía.");
     this.name = "TaxonomySessionRequiredError";
   }
 }

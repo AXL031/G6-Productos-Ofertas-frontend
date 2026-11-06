@@ -7,6 +7,7 @@ export interface SessionUser {
   roles: readonly string[];
 }
 export interface SessionView {
+  expiresAt: number | null;
   user: SessionUser | null;
   mfa: boolean;
   busy: boolean;
@@ -27,6 +28,7 @@ const messages = {
   PASSWORD_CADUCADA:
     "Debes actualizar tu contraseña en Seguridad antes de continuar.",
   CODIGO_INVALIDO: "El código no es correcto. Revísalo e intenta de nuevo.",
+  OTP_EXPIRADO: "El código venció. Solicita un código nuevo para continuar.",
   OTP_INTENTOS_AGOTADOS: "Solicita un código nuevo para continuar.",
   DEMASIADAS_SOLICITUDES:
     "Se alcanzó el límite de intentos. Intenta más tarde.",
@@ -113,7 +115,7 @@ export class G7Session {
   #refresh: Promise<string | null> | null = null;
   #generation = 0;
   #listeners = new Set<() => void>();
-  #view: SessionView = { user: null, mfa: false, busy: false, notice: "" };
+  #view: SessionView = { user: null, mfa: false, busy: false, notice: "", expiresAt: null };
   constructor(
     base: string,
     private readonly clock: () => number = Date.now,
@@ -136,7 +138,7 @@ export class G7Session {
     this.#tokens = null;
     this.#challenge = null;
     this.#refresh = null;
-    this.#publish({ user: null, mfa: false, busy: false, notice });
+    this.#publish({ user: null, mfa: false, busy: false, notice, expiresAt: null });
   }
   async #post(path: string, body: unknown, expected = 200): Promise<unknown> {
     const response = await fetch(this.#base + path, {
@@ -185,7 +187,7 @@ export class G7Session {
       expiresAt: this.clock() + positive(dto.expiresIn) * 1000,
     };
     this.#challenge = null;
-    this.#publish({ user, mfa: false, notice: "" });
+    this.#publish({ user, mfa: false, notice: "", expiresAt: this.#tokens.expiresAt });
   }
   async #action(work: () => Promise<void>) {
     if (this.#view.busy) return;
