@@ -11,7 +11,7 @@ npm ci
 npm run dev
 ```
 
-Vite inicia en `http://127.0.0.1:5173`. La ruta inicial redirige a `/precios`. Para revisar las pantallas, navega por el menú o abre, por ejemplo, `/productos`, `/categorias`, `/precios/auditoria`, `/carga-masiva`, `/combos` o `/inventario`.
+Vite inicia en `http://127.0.0.1:5173`. Sin sesión, las rutas administrativas redirigen a `/login`. Tras autenticarse, la entrada inicial es `/precios`. En desarrollo mock se permite recorrer fixtures sin identidad G7; los builds de producción exigen login también en modo mock. Para revisar las pantallas, navega por el menú o abre, por ejemplo, `/productos`, `/categorias`, `/precios/auditoria`, `/carga-masiva`, `/combos` o `/inventario`.
 
 Comandos disponibles:
 
@@ -56,10 +56,10 @@ El flujo [Verificación de despliegues de Vercel](.github/workflows/verificacion
 ## Configuración de datos
 
 Catálogo/Variantes (#5/#6/#35) conecta sus adaptadores HTTP cuando `VITE_DATA_MODE=api`
-y `VITE_GATEWAY_ORIGIN` contiene un origen válido. Para este módulo G7 no es
-requisito de arranque: el transporte de fase 1 no envía JWT ni identidad ficticia.
-Eso no habilita una excepción de seguridad: Gateway y Backend conservan sus guards;
-las escrituras sin JWT requieren el entorno restringido aprobado por sus owners.
+y `VITE_GATEWAY_ORIGIN` contiene un origen válido. Las rutas administrativas requieren
+la sesión general G7 y Catálogo envía su access token mediante un transporte
+autenticado. La demo pública `/demo/g6/*` conserva su transporte aislado de lectura.
+Gateway y Backend conservan sus guards y decisiones de autorización.
 Sin URL, configuración inválida o error HTTP, Catálogo falla explícitamente, sin mocks.
 El puerto `CatalogHttpTransport` permite conectar el cliente compartido de #45
 posteriormente sin modificar los DTO ni implementar sesión en esta feature.
@@ -81,11 +81,11 @@ Si alguna URL de Promotions falta o es inválida, sus rutas muestran indisponibi
 | `mock` | Demostración con repositorios en memoria y fixtures. No requiere Backend, credenciales ni conexión de red. Las escrituras simuladas se conservan en `localStorage` de este navegador (ver «Persistencia de la demostración»). |
 | `api` | Selecciona puertos API cuando hay providers configurados; sin ellos, cada módulo define su respuesta. Bulk y Combos se detallan debajo. |
 
-**Bulk:** `VITE_DATA_MODE=mock` selecciona de forma explícita el repositorio de demostración. En `api`, `/carga-masiva` usa el adaptador HTTP del contrato OpenAPI 0.6.0-rc.2 cuando están configurados `VITE_GATEWAY_ORIGIN`, `VITE_G7_API_BASE` y una sesión G7 válida. Sin Gateway o sesión, la pantalla informa que el provider no está disponible; las respuestas HTTP y los errores de red se muestran sin recurrir al mock. La integración del consumidor tiene pruebas unitarias y un arnés de interfaz contra un servidor HTTP aislado; el contrato marca las operaciones Bulk como `provisional-internal`, por lo que esas pruebas no acreditan disponibilidad ni homologación del backend. Se conectan plantilla, importación multipart, consulta de lote/filas/dominios, reporte, reanudación y exportación CSV/XLSX. Los modos de datos no comparten estado.
+**Bulk:** `VITE_DATA_MODE=mock` selecciona de forma explícita el repositorio de demostración. En `api`, `/carga-masiva` usa el adaptador HTTP del contrato OpenAPI 0.6.0-rc.2 cuando están configurados `VITE_GATEWAY_ORIGIN`, `VITE_G7_API_BASE` y una sesión G7 válida. Sin sesión se redirige a `/login`; con sesión pero sin Gateway, se informa que el provider no está disponible; las respuestas HTTP y los errores de red se muestran sin recurrir al mock. La integración del consumidor tiene pruebas unitarias y un arnés de interfaz contra un servidor HTTP aislado; el contrato marca las operaciones Bulk como `provisional-internal`, por lo que esas pruebas no acreditan disponibilidad ni homologación del backend. Se conectan plantilla, importación multipart, consulta de lote/filas/dominios, reporte, reanudación y exportación CSV/XLSX. Los modos de datos no comparten estado.
 
 En desarrollo, la aplicación usa `mock` si la variable no está definida. Para `npm run build` se requiere definir `VITE_DATA_MODE` expresamente como `mock` o `api`; un valor ausente o inválido detiene el build. Copiar `.env.example` a `.env.local` configura `mock`. Vite carga las variables al arrancar: reinicia el servidor o vuelve a construir tras cambiarlas.
 
-`api` no configura por sí solo una URL ni concede acceso. Con ambas URLs de integración, Promotions conecta su adaptador HTTP al cliente G7 de login/MFA/renovación/logout. Sin URLs conserva el bloqueo visible; una configuración incompleta falla al iniciar. Tokens, identidad y desafío permanecen solo en memoria: recargar exige login. El consumidor AMQP no se habilita desde el frontend. La sesión se prueba con fixtures HTTP explícitos; el recorrido por Gateway/PostgreSQL usa además un entorno descartable independiente. Ninguna de esas pruebas acredita G7 compartido, homologación ni despliegue. Detalles en [integración Promotions](docs/INTEGRACION_PROMOTIONS_GATEWAY.md).
+`api` no configura por sí solo una URL ni concede acceso. Con ambas URLs de integración, Promotions conecta su adaptador HTTP al cliente G7 de login/MFA/renovación/logout. Sin una base G7 válida, el login general informa indisponibilidad y bloquea el panel; sin Gateway válido, las integraciones afectadas permanecen cerradas. Tokens, identidad y desafío permanecen solo en memoria: recargar exige login. El consumidor AMQP no se habilita desde el frontend. La sesión se prueba con fixtures HTTP explícitos; el recorrido por Gateway/PostgreSQL usa además un entorno descartable independiente. Ninguna de esas pruebas acredita G7 compartido, homologación ni despliegue. Detalles en [integración Promotions](docs/INTEGRACION_PROMOTIONS_GATEWAY.md).
 
 La demo interna de lectura G6 se habilita con `VITE_G6_READ_DEMO=true`, `VITE_DATA_MODE=api` y `VITE_GATEWAY_ORIGIN` explícito. Está aislada en `/demo/g6/productos`, `/demo/g6/productos/:id` y `/demo/g6/categorias`; las rutas administrativas conservan su router. Vercel no publica un proxy de `/api/v1/*`: el navegador consulta el origen configurado, sujeto a CORS y guards del Gateway. Pricing limita a tres las consultas simultáneas y cancela las pendientes al salir. Estado y reproducción: [correcciones de auditoría PR #40](docs/CORRECCIONES_PR40.md).
 
@@ -107,7 +107,7 @@ La tabla resume lo que muestran el código y la configuración de esta rama; la 
 | Taxonomía (categorías, características, tipos, marcas y SEO) | En `mock` se muestra un aviso de datos simulados. En `api`, el listado y el enlace de esquema usan adapters Gateway; el esquema valida DTO, acepta `schemaVersion` desde 0, cancela y limita consultas, y reutiliza la sesión humana G7 para renovar una vez ante `401 TOKEN_INVALIDO`. El provider Backend `5abfffc` implementa el GET de esquema. El GET de detalle separado sigue bloqueado porque continúa `provisional-internal`; las escrituras siguen cerradas. No hay fallback a mocks. La homologación de discrepancias, JWT G7 real, grant efectivo y E2E Gateway siguen pendientes. Ver [integración MK-010 H4](docs/INTEGRACION_TAXONOMIA_MK010_H4.md). |
 | Precios y programaciones/importación | Flujos de demostración mock. El modo `api` requiere un adapter; la implementación predeterminada falla explícitamente, sin fallback. Las operaciones de archivo no acreditan procesamiento comercial de Backend. |
 | Auditoría de precios | Listado, detalle y exportación de demostración mock. Las ediciones confirmadas de Pricing incorporan asientos simulados por sesión de navegador; recargar conserva los asientos emitidos. El runtime permite inyección, pero no incluye provider API predeterminado. Los archivos disponibles son muestras. |
-| Cupones, promociones y recomendaciones | Flujos de demostración mock. En modo `api`, `CommercialModeGate` bloquea estas rutas si no reciben un proveedor explícito mediante `PromotionApiContext`. El adaptador HTTP administrativo está conectado al cliente G7 de sesión en memoria cuando se configuran ambas URLs; su recorrido por Gateway/PostgreSQL está probado en entorno descartable; los selectores disponen de adaptador HTTP tipado de Catálogo/Taxonomía. La sesión G7 compartida, la prueba contra sus servicios reales y la verificación autoritativa de referencias del backend siguen pendientes. Ver [integración Promotions](docs/INTEGRACION_PROMOTIONS_GATEWAY.md). Las recomendaciones no calculan un precio final ni garantizan stock; ambos datos figuran como no disponibles en la demostración. |
+| Cupones, promociones y recomendaciones | Flujos de demostración mock. En modo `api`, `CommercialModeGate` bloquea estas rutas si no reciben un proveedor explícito mediante `PromotionApiContext`. El adaptador HTTP administrativo está conectado al cliente G7 de sesión en memoria cuando se configuran ambas URLs; su recorrido por Gateway/PostgreSQL está probado en entorno descartable; los selectores disponen de adaptador HTTP tipado de Catálogo/Taxonomía. La homologación con G7 compartido, la prueba contra sus servicios reales y la verificación autoritativa de referencias del backend siguen pendientes. Ver [integración Promotions](docs/INTEGRACION_PROMOTIONS_GATEWAY.md). Las recomendaciones no calculan un precio final ni garantizan stock; ambos datos figuran como no disponibles en la demostración. |
 | Carga masiva | Simulación mock tanto en `mock` como en `api` por la excepción descrita arriba. La revisión local de archivos no sustituye la validación comercial; XLSX y procesamiento/exportación reales requieren Backend. Ver [límites de carga masiva](docs/ESTADO_CARGA_MASIVA.md). |
 | Combos | Gestión de combos (MK-002) con puertos tipados y adapters mock; la disponibilidad es información de catálogo compartido, sin consultar ni reservar stock real. En `api` sin provider la integración se muestra cerrada, sin fallback a fixtures. |
 | Inventario (control de stock, umbrales, traslados y dashboard) | Flujos de demostración mock (`MK-015` y `MK-016`). En modo `api`, `CommercialModeGate` bloquea las rutas de `/inventario` y `ApiPendingRepository` rechaza operaciones sin fallback a mocks. Soporta inyección de repositorio alternativo (`tests/harness/inventory-adapter.html`). Ver [contrato de inventario](docs/CONTRATO_INVENTARIO_FRONTEND.md). |
@@ -202,3 +202,97 @@ Despliegue nativo GitHub → Vercel: [configuración inicial, preparación, prue
 | Requisitos funcionales, UX/Design System, arquitectura y contratos | [Repositorio Docs](https://github.com/Taller-SW-Web/G6-Productos-Ofertas-docs) — `requisitos/`, `ux/mockups/`, `arquitectura/` y `contratos/` |
 
 Docs es la fuente para SPEC, HU, flujos, decisiones UX y contratos ejecutables. Backend es un repositorio independiente responsable de sus servicios. Antes de integrar, verifica el contrato vigente del provider y los acuerdos aplicables; la documentación o un adapter local no prueban homologación, despliegue o autorización.
+
+
+## Login general y sesión compartida
+
+`/login` vive fuera de `ApplicationShell`. `RequireSession` protege todo el árbol
+administrativo antes de montar páginas o navegación. `AuthSessionContext` contiene
+la única instancia `G7Session`; `PromotionSessionContext` es un alias del mismo
+contexto para conservar compatibilidad. Promociones, Taxonomía, Bulk y el transporte
+administrativo de Catálogo consumen esa instancia. Los providers todavía pendientes
+no se convierten automáticamente en integraciones HTTP por disponer de login.
+
+Configuración local con el provider G7 y Gateway autorizados (PowerShell):
+
+```powershell
+$env:VITE_DATA_MODE = 'api'
+$env:VITE_G7_API_BASE = '<base publicada de G7, incluyendo su prefijo API>'
+$env:VITE_GATEWAY_ORIGIN = '<origen publicado de Gateway>'
+npm run dev
+```
+
+No hay credenciales de ejemplo para G7 real. Las bases deben ser HTTPS; HTTP solo
+se admite en loopback. Sin una base G7 válida, el formulario informa que el servicio
+no está configurado y el panel permanece bloqueado. Si Gateway no está configurado,
+el login G7 puede funcionar, pero las integraciones que lo requieren siguen cerradas.
+MFA pendiente no habilita administración. No se ofrecen registro ni recuperación
+de contraseña. La identidad mostrada procede de G7; los permisos efectivos los
+verifican Gateway y cada servicio, sin inferir grants por una ruta del navegador.
+
+Access token, refresh token y desafío viven solo en memoria. Recargar exige login.
+La renovación existente se comparte entre peticiones; el guard comprueba la
+sesión al entrar y al vencer el acceso. Cambiar de sección conserva el shell
+montado y no reinicia la validación de la misma sesión.
+El logout del encabezado borra la sesión local aunque falle la red. Las respuestas
+tardías no la restauran. Los GET contractuales pueden renovar una vez ante
+`401 TOKEN_INVALIDO`. Si ese mismo código vuelve tras renovar, se invalida el
+token rechazado. Un 401 desconocido o ilegible y un 403 conservan la sesión.
+Las escrituras se envían una sola vez por intento.
+
+Política de pruebas/demostración: `DEV` + modo global `mock` permite fixtures sin
+crear un usuario G7. En `api` no hay bypass. En producción tampoco lo hay en modo
+`mock`. `/demo/g6/*` conserva su excepción de lectura, con sus flags y contratos
+previos, y no permite abrir el árbol administrativo.
+
+Para verificar sin reutilizar un Vite que ya esté abierto:
+
+```powershell
+$env:VITE_DATA_MODE = 'mock'
+$env:PLAYWRIGHT_PORT = '5185'
+npm run typecheck
+npm run lint
+npm test
+npm run test:e2e
+```
+
+`tests/auth-general.spec.ts` arranca un provider HTTP G7 de contrato en loopback;
+el navegador ejecuta login/MFA/refresh/logout reales contra ese simulador. No es
+G7 compartido ni homologación. Los tests de sesión/401/403 existentes permanecen.
+El puerto de Playwright es configuración exclusiva de pruebas. En CI y al indicar
+un puerto propio, la suite exige arrancar su servidor. Para el login solamente:
+
+```powershell
+npm run test:e2e -- tests/auth-general.spec.ts tests/promotions-session-ui.spec.ts tests/promotions-session.spec.ts --workers=1
+```
+
+Las verificaciones de preview (`scripts/verify-production.mjs` y
+`scripts/vercel-smoke.mjs`) comprueban el fallo cerrado anónimo. No acreditan un
+login operativo ni preparación para liberar. `npm run test:production:auth`
+compila mock y API con un G7/Gateway contractual aislado: restaura las 58 vistas
+funcionales y la escritura de Pricing del verificador original, y prueba login,
+MFA, expiración, renovación, roles, 401/403, logout y separación de identidades.
+Sus credenciales son fixtures; no es homologación real.
+
+Para comprobar una configuración candidata existe `npm run verify:release:login`.
+Requiere aprobaciones independientes `G6_RELEASE_APPROVED_PREVIEW_ORIGIN`,
+`G6_RELEASE_APPROVED_G7_API_BASE`, `G6_RELEASE_APPROVED_GATEWAY_ORIGIN` y
+`G6_RELEASE_APPROVED_GATEWAY_OPERATION=listarCupones`, además
+de `G6_RELEASE_PREVIEW_URL`, `G6_RELEASE_TEST_EMAIL` y `G6_RELEASE_TEST_PASSWORD`
+en el entorno de Node (nunca `VITE_*`). Exige HTTPS/origen exacto, comprueba las
+bases efectivas antes de rellenar campos y bloquea redirecciones de documentos y
+peticiones de autenticación. El CLI productivo no admite HTTP ni un flag de fixture.
+Las sondas obligatorias aceptan G7 OPTIONS 200/204 y Gateway GET anónimo 401/403.
+La sonda y la lectura autenticada usan la misma URL de Cupones, con
+`pagina=1&tamanio=10`. La lectura debe devolver 200 con el Bearer de esa sesión.
+El gate comprueba URL y contenido propios de Precios. Para el logout registra
+el cierre local y el HTTP 204 de G7 por separado. La revocación efectiva
+requiere evidencia del owner sin volver a enviar el refresh token.
+
+Sin intervención manual falla si MFA queda pendiente. Para la aceptación real,
+`npm run verify:release:login -- --mfa-manual` abre una ventana donde el operador
+autorizado solicita e introduce el OTP real; no recibe OTP por argumentos o env.
+No hace escrituras comerciales, no registra credenciales y no genera trazas.
+Seguir el [procedimiento bilateral y acta de aceptación MFA](docs/ACEPTACION_BILATERAL_G7_MFA.md).
+La aceptación externa de cada provider continúa siendo necesaria. Evidencia y límites reales en
+[LOGIN_GENERAL.md](docs/LOGIN_GENERAL.md) y [auditoría](docs/AUDITORIA_LOGIN_PR70.md).

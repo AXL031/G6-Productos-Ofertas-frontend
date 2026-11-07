@@ -25,7 +25,15 @@ export function respuestaRecursoCorrecta(status) {
 
 export function clasificarRespuesta({ url, location, status, isNavigation, baseOrigin }) {
   if (isNavigation) {
-    if (esDestinoAutenticacion(url, baseOrigin) || (location && esDestinoAutenticacion(location, url))) return "authentication";
+    const responseUrl = new URL(url, baseOrigin);
+    const isApplicationLogin = responseUrl.origin === baseOrigin && /^\/login(?:\/|$)/i.test(responseUrl.pathname);
+    if (location) {
+      const destination = new URL(location, responseUrl);
+      if (destination.origin === baseOrigin && /^\/login(?:\/|$)/i.test(destination.pathname)) return "application-login";
+      if (esDestinoAutenticacion(destination.href, baseOrigin)) return "authentication";
+    }
+    if (isApplicationLogin) return "application-login";
+    if (esDestinoAutenticacion(url, baseOrigin)) return "authentication";
     return status >= 400 ? "application" : null;
   }
   return new URL(url).origin === baseOrigin && !respuestaRecursoCorrecta(status) ? "resource" : null;
@@ -145,15 +153,16 @@ try {
     const heading = page.getByRole("heading", { level: 1 });
     await heading.waitFor();
     const text = await heading.innerText();
-    const expected = path === "/" || path === "/precios" ? /precios/i : path === "/productos" ? /productos/i : path === "/categorias" ? /categor[ií]as/i : /carga|importaci[oó]n/i;
-    assert.match(text, expected, `${path}: no se encontró el contenido esperado`);
-    assert.doesNotMatch(text, /no encontrad|no disponible|error/i, `${path}: se detectó contenido de error`);
-    if (["/", "/precios", "/productos", "/categorias"].includes(path)) await page.getByRole("table").first().waitFor();
+    assert.match(text, /iniciar sesi[oó]n/i, `${path}: se esperaba el acceso protegido por login`);
+    assert.equal(new URL(page.url()).origin, base.origin, `${path}: se esperaba mantener el origen de la aplicación`);
+    assert.equal(new URL(page.url()).pathname, "/login", `${path}: la ruta protegida debe terminar en /login`);
+    assert.equal(await page.getByRole("navigation").count(), 0, `${path}: no debe exponer navegación del panel sin sesión`);
+    assert.equal(await page.getByRole("table").count(), 0, `${path}: no debe exponer datos del panel sin sesión`);
     if (path === "/productos") {
       const reload = await page.reload({ waitUntil: "networkidle" });
       assert.equal(reload?.status(), 200, "La recarga de /productos debe responder HTTP 200");
-      await page.getByRole("table").first().waitFor();
-      assert.match(await heading.innerText(), /productos/i);
+      await heading.waitFor();
+      assert.match(await heading.innerText(), /iniciar sesi[oó]n/i, "La recarga debe conservar el guard de login");
     }
     console.log(`Correcto: ${path}${path === "/productos" ? " y recarga" : ""}`);
   }
@@ -172,7 +181,7 @@ try {
   assert.deepEqual(authenticationRedirects, [], "Se detectó una redirección a una página de autenticación.");
   assert.deepEqual(resourceFailures, [], "Se detectaron respuestas HTTP fallidas en recursos de la aplicación.");
   assert.deepEqual(applicationFailures, [], "Se detectaron errores de aplicación, consola, navegación o red.");
-  console.log(`Verificación correcta: cinco rutas, recarga, ${assets.size} recursos JS/CSS y cero errores; ${base.origin}`);
+  console.log(`Verificación correcta: cinco rutas protegidas, login y recarga, ${assets.size} recursos JS/CSS sin errores; ${base.origin}`);
 } finally {
   await browser.close();
 }

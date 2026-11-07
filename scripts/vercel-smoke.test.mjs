@@ -10,12 +10,18 @@ test("clasifica errores HTTP de documentos y recursos con categorías distintas"
   assert.equal(clasificarRespuesta({ url: `${origin}/assets/app.js`, status: 200, isNavigation: false, baseOrigin: origin }), null);
 });
 
-test("detecta redirect de un documento a rutas y dominios de autenticación", () => {
+test("distingue el login local esperado de redirects a autenticación externos", () => {
   assert.equal(clasificarRespuesta({
     url: `${origin}/productos`, location: "https://vercel.com/sso-api?next=%2Fproductos", status: 302, isNavigation: true, baseOrigin: origin,
   }), "authentication");
   assert.equal(clasificarRespuesta({
     url: `${origin}/login`, status: 200, isNavigation: true, baseOrigin: origin,
+  }), "application-login");
+  assert.equal(clasificarRespuesta({
+    url: `${origin}/productos`, location: `${origin}/login`, status: 302, isNavigation: true, baseOrigin: origin,
+  }), "application-login");
+  assert.equal(clasificarRespuesta({
+    url: `${origin}/login`, location: "https://vercel.com/sso-api", status: 302, isNavigation: true, baseOrigin: origin,
   }), "authentication");
   assert.equal(esDestinoAutenticacion("https://auth.example.test/sign-in", origin), true);
   assert.equal(esDestinoAutenticacion("https://vercel.com/sso-api", origin), true);

@@ -25,6 +25,7 @@ import type { PromotionCatalogRepository } from "../services/catalogRepository";
 import type { PromotionServices } from "../services/promotionServices";
 
 import { createHttpPromotionCatalog } from "./httpPromotionCatalog";
+import { isGatewayTokenInvalid } from "../../shared/isGatewayTokenInvalid";
 
 export interface PromotionHttpOptions {
   gatewayOrigin: string;
@@ -35,6 +36,7 @@ export interface PromotionHttpOptions {
   ): Promise<string | null>;
   invalidateAccessToken?(rejectedToken: string): void;
   catalog?: PromotionCatalogRepository;
+  sessionEvents?: { version(): number; subscribe(notify: () => void): () => void };
 }
 class HttpFailure extends Error {
   constructor(readonly status: number) {
@@ -278,7 +280,7 @@ function page<T>(v: unknown, map: (v: unknown) => T) {
 
 export function createHttpPromotionServices(
   options: PromotionHttpOptions,
-): PromotionServices {
+): PromotionServices & { dispose(): void } {
   const url = new URL(options.gatewayOrigin);
   if (
     url.username ||
@@ -300,6 +302,10 @@ export function createHttpPromotionServices(
     method = "GET",
     body?: unknown,
   ): Promise<unknown> {
+    const version = options.sessionEvents?.version();
+    const assertSession = () => {
+      if (version !== options.sessionEvents?.version()) throw new HttpFailure(401);
+    };
     signal.throwIfAborted();
     const bounded = AbortSignal.any([signal, AbortSignal.timeout(7500)]);
     async function sessionToken(work: () => Promise<string | null>) {
@@ -319,6 +325,7 @@ export function createHttpPromotionServices(
       }
     }
     const token = await sessionToken(() => options.getAccessToken(bounded));
+    assertSession();
     bounded.throwIfAborted();
     if (!token || /[\r\n]/.test(token)) throw new HttpFailure(401);
     const send = (accessToken: string) =>
@@ -336,33 +343,23 @@ export function createHttpPromotionServices(
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
     let response = await send(token);
-    if (response.status === 401 && options.refreshAccessToken) {
-      let code: unknown;
-      try {
-        const problem: unknown = await response.json();
-        code = record(problem).code;
-      } catch {
-        /* An unknown 401 never triggers refresh or replay. */
-      }
-      if (code === "TOKEN_INVALIDO") {
-        if (method === "GET") {
-          const refresh = options.refreshAccessToken;
-          const renewed = await sessionToken(() => refresh(token, bounded));
-          bounded.throwIfAborted();
-          if (renewed && !/[\r\n]/.test(renewed)) {
-            response = await send(renewed);
-            if (response.status === 401)
-              options.invalidateAccessToken?.(renewed);
-          }
-        } else {
-          // Preserve the existing no-retry rule for writes; the UI reports the
-          // failed action and requires a new explicit authenticated attempt.
-          options.invalidateAccessToken?.(token);
-        }
+    const refresh = options.refreshAccessToken;
+    if (refresh && await isGatewayTokenInvalid(response)) {
+      if (method === "GET") {
+        const renewed = await sessionToken(() => refresh(token, bounded));
+        bounded.throwIfAborted();
+        if (renewed && !/[\r\n]/.test(renewed)) {
+          response = await send(renewed);
+          if (await isGatewayTokenInvalid(response)) options.invalidateAccessToken?.(renewed);
+        } else options.invalidateAccessToken?.(token);
+      } else {
+        options.invalidateAccessToken?.(token);
       }
     }
     if (!response.ok) throw new HttpFailure(response.status);
-    return response.json();
+    const result: unknown = await response.json();
+    assertSession();
+    return result;
   }
   async function read<T>(
     work: () => Promise<T>,
@@ -419,6 +416,15 @@ export function createHttpPromotionServices(
   }
   const campaignSnapshots = new Map<string, CampaignDraft>(),
     ruleSnapshots = new Map<string, RecommendationDraft>();
+  let version = options.sessionEvents?.version();
+  const unsubscribe = options.sessionEvents?.subscribe(() => {
+    const current = options.sessionEvents?.version();
+    if (current !== version) {
+      version = current;
+      campaignSnapshots.clear();
+      ruleSnapshots.clear();
+    }
+  });
   function mapCampaign(v: unknown) {
     const r = campaign(v);
     campaignSnapshots.set(r.id, structuredClone(r.configuration));
@@ -696,6 +702,7 @@ export function createHttpPromotionServices(
   };
   const httpCatalog = createHttpPromotionCatalog(request);
   return {
+    dispose: () => { unsubscribe?.(); campaignSnapshots.clear(); ruleSnapshots.clear(); },
     campaigns,
     coupons,
     recommendations,

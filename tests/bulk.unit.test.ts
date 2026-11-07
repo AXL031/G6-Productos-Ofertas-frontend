@@ -33,6 +33,30 @@ const testSession = {
 };
 
 describe("adaptador HTTP de Bulk", () => {
+  it.each([401, 403])("R4-03 preserva sesión ante POST HTTP %i desconocido sin reintento", async status => {
+    const invalidateAccessToken = vi.fn(), refreshAccessToken = vi.fn();
+    const request = vi.fn().mockImplementation(async () => new Response("ilegible", { status }));
+    await expect(createHttpBulkRepository({ request }, { ...testSession, invalidateAccessToken, refreshAccessToken }).createExport("CSV")).rejects.toMatchObject({ status });
+    expect(request).toHaveBeenCalledTimes(1); expect(refreshAccessToken).not.toHaveBeenCalled(); expect(invalidateAccessToken).not.toHaveBeenCalled();
+  });
+  it.each(["TOKEN_INVALIDO", "DESCONOCIDO", "ilegible"])("R4-03 segundo GET 401 %s solo invalida si es contractual", async code => {
+    const invalidateAccessToken = vi.fn(), refreshAccessToken = vi.fn().mockResolvedValue("new-token");
+    const request = vi.fn()
+      .mockResolvedValueOnce(Response.json({ code: "TOKEN_INVALIDO" }, { status: 401 }))
+      .mockResolvedValueOnce(new Response(code === "ilegible" ? code : JSON.stringify({ code }), { status: 401 }));
+    await expect(createHttpBulkRepository({ request }, { ...testSession, invalidateAccessToken, refreshAccessToken }).getImport("batch")).rejects.toMatchObject({ status: 401 });
+    expect(request).toHaveBeenCalledTimes(2); expect(refreshAccessToken).toHaveBeenCalledTimes(1);
+    if (code === "TOKEN_INVALIDO") expect(invalidateAccessToken).toHaveBeenCalledExactlyOnceWith("new-token");
+    else expect(invalidateAccessToken).not.toHaveBeenCalled();
+  });
+  it("R4-03 POST TOKEN_INVALIDO invalida sin renovar ni repetir escritura", async () => {
+    const invalidateAccessToken = vi.fn(), refreshAccessToken = vi.fn();
+    const request = vi.fn().mockImplementation(async () => Response.json({ code: "TOKEN_INVALIDO" }, { status: 401 }));
+    const repo = createHttpBulkRepository({ request }, { ...testSession, invalidateAccessToken, refreshAccessToken });
+    await expect(repo.createExport("CSV")).rejects.toMatchObject({ status: 401 });
+    expect(request).toHaveBeenCalledTimes(1); expect(refreshAccessToken).not.toHaveBeenCalled();
+    expect(invalidateAccessToken).toHaveBeenCalledExactlyOnceWith("header.payload.signature");
+  });
   it("usa rutas del contrato, bearer y multipart sin fabricar Content-Type", async () => {
     const calls: Array<{ path: string; init: Parameters<BulkHttpTransport["request"]>[1] }> = [];
     const transport: BulkHttpTransport = { request: async (path, init) => {

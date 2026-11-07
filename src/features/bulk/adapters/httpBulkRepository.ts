@@ -1,4 +1,5 @@
 import type { G7Session } from "../../promotions/adapters/g7Session";
+import { isGatewayTokenInvalid } from "../../shared/isGatewayTokenInvalid";
 import type { BulkRepository, DownloadResource } from "../services/bulkRepository";
 import { BulkRepositoryError } from "../services/bulkErrors";
 import type {
@@ -137,14 +138,14 @@ export function createHttpBulkRepository(transport: BulkHttpTransport, session: 
     let response: Response;
     try { response = await request(token); }
     catch (error) { if (signal?.aborted || bounded.aborted) throw error; throw new BulkRepositoryError("No se pudo conectar con Gateway. Revisa la conexión e inténtalo de nuevo.", "communication"); }
-    if (response.status === 401 && method === "GET") {
-      const problem = await response.clone().json().catch(() => null) as { code?: unknown } | null;
-      if (problem?.code === "TOKEN_INVALIDO") {
+    if (await isGatewayTokenInvalid(response)) {
+      if (method === "POST") session.invalidateAccessToken(token);
+      else {
         const renewed = await session.refreshAccessToken(token, bounded).catch(() => null);
         if (renewed && !/[\r\n]/.test(renewed)) {
           response = await request(renewed).catch(() => { throw new BulkRepositoryError("No se pudo conectar con Gateway.", "communication"); });
-          if (response.status === 401) session.invalidateAccessToken(renewed);
-        }
+          if (await isGatewayTokenInvalid(response)) session.invalidateAccessToken(renewed);
+        } else session.invalidateAccessToken(token);
       }
     }
     if (!response.ok) {
