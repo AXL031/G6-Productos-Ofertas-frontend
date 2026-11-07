@@ -22,6 +22,7 @@ import { createCombosRuntime } from "./features/combos/services/combosService";
 import { CombosProvider } from "./features/combos/components/CombosProvider";
 import { BulkRepositoryContext } from "./features/bulk/services/BulkRepositoryContext";
 import { createBulkFetchTransport, createHttpBulkRepository } from "./features/bulk/adapters/httpBulkRepository";
+import { GatewayOriginContext } from "./app/config/GatewayOriginContext";
 
 
 export async function startApplication(root: Root, mode: "mock" | "api", session: G7Session | null, gatewayOrigin?: string, securityApiBase?: string) {
@@ -65,7 +66,7 @@ export async function startApplication(root: Root, mode: "mock" | "api", session
                 <AuthSessionContext.Provider value={session}>
                   <PromotionApiContext.Provider value={promotions?.services ?? null}>
                     <CombosProvider mode={mode} runtime={combosRuntime}>
-                      <App />
+                      <GatewayOriginContext.Provider value={gateway}><App /></GatewayOriginContext.Provider>
                     </CombosProvider>
                   </PromotionApiContext.Provider>
                 </AuthSessionContext.Provider>

@@ -11,6 +11,7 @@ import { productRoutes } from "./productRoutes";
 import { RequireSession } from "./RequireSession";
 import { LoginPage } from "../../features/auth/pages/LoginPage";
 const G6ReadDemoApp = lazy(() => import("../../features/catalog/pages/G6ReadDemoApp").then(module => ({ default: module.G6ReadDemoApp })));
+const ReadOnlyPage = lazy(() => import("../../features/reads/ReadOnlyPage").then(module => ({ default: module.ReadOnlyPage })));
 const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
   ...(import.meta.env.VITE_G6_READ_DEMO === "true" ? [{
@@ -23,8 +24,9 @@ const router = createBrowserRouter([
       {
         element: <ApplicationShell />,
         children: [
-          { path: "/", element: <Navigate to="/precios" replace /> },
+          { path: "/", element: <Navigate to={import.meta.env.VITE_DATA_MODE === "api" ? "/consultas" : "/precios"} replace /> },
           ...productRoutes,
+          { path: "/consultas", element: <Suspense fallback={<p role="status">Cargando consultas…</p>}><ReadOnlyPage /></Suspense> },
           ...(import.meta.env.DEV ? demoRoutes : []),
           { path: "*", element: <NotFoundPage /> },
         ],
