@@ -1,16 +1,16 @@
 # Evidencia de CI/CD — Hito 4
 
-## Estado actual de auditoría H63 — 2026-11-07
+## Evidencia actual H63 — 2026-11-07
 
-- PR [#63](https://github.com/Taller-SW-Web/G6-Productos-Ofertas-frontend/pull/63) está abierta, lista para revisión y aún sin merge. HEAD de la PR al capturar esta evidencia: `6b1e81ea6193846431f9acddf7de562d279e5c07`.
-- Último CI integral completo al capturar esta evidencia: [run 42347582850](https://github.com/Taller-SW-Web/G6-Productos-Ofertas-frontend/actions/runs/42347582850), `success` sobre ese HEAD; todos los trabajos, cuatro fragmentos E2E y el agregador terminaron correctamente.
-- Playwright enumeró 559 pruebas en 56 archivos. Los cuatro fragmentos E2E pasaron; el verificador de CI comprobó la cobertura de manifiestos, sin cambiar archivos de pruebas E2E. La enumeración local `npm run test:e2e -- --list` confirmó el mismo total.
-- Pruebas nuevas de scripts: 51/51; `npm run lint`, `npm run typecheck` y `npm test` pasaron. Las 438 pruebas unitarias se ejecutaron en la división existente por módulos.
+- HEAD de código auditado y probado: `56cb0e0c8d52df791170ba8c81e0a756aad75cad`, publicado en la rama de la PR #63. Esta actualización registra la evidencia de ese snapshot; la PR [sigue abierta y sin merge](https://github.com/Taller-SW-Web/G6-Productos-Ofertas-frontend/pull/63), no es borrador y GitHub indica `REVIEW_REQUIRED` / `BLOCKED` por revisión pendiente. No se ejecutó el merge.
+- Última CI integral completa del snapshot: [run 42349984992](https://github.com/Taller-SW-Web/G6-Productos-Ofertas-frontend/actions/runs/42349984992), `success` en ese HEAD. Pasaron los 16 trabajos, incluidos los cuatro fragmentos E2E, smoke/preview, compilación de ambos modos y el agregador `Validación integral de integración continua`.
+- Playwright enumeró 594 pruebas en 57 archivos. Las cuatro partes pasaron: 151 + 149 + 145 + 143 = 588 aprobadas; 6 omitidas por anotaciones existentes; cero fallos. El control de manifiestos comprobó cobertura completa; al detectar nuevos archivos, el ejecutor usa fragmentación automática completa, por lo que no se descarta la suite.
+- Validación local del snapshot: 48/48 pruebas específicas de H63; `npm run lint`, `npm run typecheck`, `npm test`, `npm run test:release:boundary` y `npm run test:production:auth` correctos. Smoke mock local correcto: cinco rutas protegidas, guard local a `/login`, recarga de `/productos` y 7 recursos JS/CSS. Build requiere `VITE_DATA_MODE` explícito y pasó en `mock` y `api`.
 - Producción sigue en el deployment `dpl_8wKLFp3QQAFYAirFsxcqFc1a8Ln9`, `READY`, rama `master`, SHA `4d1b85969816f2879a6f6f17b3553cccba0ab764`. La configuración Vercel registra `autoAssignCustomDomains: true` y el deployment lista el dominio de Production junto con los aliases Git de `master`.
 - La API autenticada de Vercel devolvió `checks: []` para ese deployment. La lectura del proyecto no expone la selección persistente en Settings. El owner observó en el dashboard “No configured checks found”; no hay evidencia de checks requeridos activos, por lo que **CD protegido queda pendiente**.
 - El workflow `vercel.deployment.ready` está solo en el HEAD de la PR; Vercel/GitHub ejecutan `repository_dispatch` solo si el workflow ya existe en `master`. El primer merge autorizado puede crear un deployment nativo que se promueva antes de configurar checks. Esa primera ejecución no probaría el bloqueo; se requiere un deployment posterior a seleccionar los dos estados.
-- Nombres exactos publicados por el código tras la corrección: `Vercel - g6-productos-ofertas: verificacion-automatizada-production` y `verificacion-despliegue-produccion`. No están aún disponibles para importar porque este workflow no ha ejecutado un evento real desde `master`.
-- Smoke cubre SPA y recursos en modo `mock`; no acredita Gateway ni autenticación/integración G7. Un E2E Gateway requeriría un entorno y credenciales reales aprobados y queda fuera de esta comprobación.
+- Nombres exactos publicados por el código tras la corrección: `Vercel - g6-productos-ofertas: verificacion-automatizada-production` y `verificacion-despliegue-produccion`. Aún no se ha observado la primera ejecución del evento desde `master`; las pruebas CI/aisladas no validan la conexión Vercel→GitHub ni publican estados en el deployment real.
+- Smoke acredita respuesta de documento, guard de login local, errores de aplicación, HTTP/MIME de recursos y rechazo de redirects externos de autenticación. No acredita Gateway, autenticación real ni integración E2E G7; eso exige un E2E con entorno y credenciales aprobados.
 
 La configuración de selección y obligatoriedad de Deployment Checks no se expone en las lecturas de API disponibles. El evento real desde `master` y un deployment posterior con el bloqueo aplicado siguen pendientes; no se declara CD operativo ni se ha hecho merge o modificado Production.
 
@@ -81,13 +81,13 @@ No se añadió caché de `node_modules` ni de Chromium: la instalación observad
 
 ## Estado de producción de Vercel
 
-El workflow conserva el contexto final `verificacion-despliegue-produccion` y el despliegue nativo de la integración GitHub–Vercel. También usa la acción oficial `vercel/repository-dispatch/actions/status@v1` con el estado `Vercel - g6-productos-ofertas: verificacion-automatizada`, requerido para que Vercel importe la comprobación del evento `repository_dispatch`. Ambos estados deben configurarse como requeridos; el primero conserva el bloqueo fail-closed ante cancelaciones y despliegues obsoletos. El permiso `statuses:write` y `actions:read` queda limitado al trabajo de verificación.
+El workflow conserva el contexto final `verificacion-despliegue-produccion` y el despliegue nativo de la integración GitHub–Vercel. También usa la acción oficial fijada a un commit revisado `vercel/repository-dispatch/actions/status@30f760c6640485cd92f8c785ef361382555fb712` con el estado exacto `Vercel - g6-productos-ofertas: verificacion-automatizada-production`, requerido para que Vercel importe la comprobación del evento `repository_dispatch`. Ambos estados deben configurarse como requeridos; el contexto adicional aplica el resultado fail-closed ante cancelaciones, errores de publicación y deployments obsoletos. El permiso `statuses:write` y `actions:read` queda limitado al trabajo de verificación.
 
 Después de autenticar el proyecto, equipo, repositorio, rama y SHA, se registra `pending`. El resultado pasa a `success` solo si la comprobación remota pasa y el SHA del deployment sigue siendo el HEAD actual de `master`. Una comprobación remota fallida, un SHA obsoleto o una consulta de GitHub fallida dan estado `failure`. Si se cancela o falla la infraestructura antes de publicar el resultado final, el estado previo queda pendiente; no se convierte en éxito. Los runs asociados a SHA diferentes tienen grupos de concurrencia separados para que un deployment obsoleto no bloquee la versión posterior.
 
-Las pruebas unitarias verifican las decisiones de éxito, fallo remoto, cancelación, omisión, SHA obsoleto y fallo al consultar el HEAD. Son pruebas de lógica local; **no** publicaron estados reales ni comprobaron una URL de Production. No se configuraron secretos ni se inició un despliegue.
+Las pruebas unitarias verifican las decisiones de éxito, fallo remoto, cancelación, omisión, SHA obsoleto, fallo al consultar el HEAD y errores al publicar el estado (rechazo HTTP o conexión perdida). Son pruebas deterministas de lógica local; **no** publicaron estados reales ni comprobaron una URL de Production. No se configuraron secretos ni se inició un despliegue.
 
-## Validaciones reproducibles
+## Validaciones reproducibles (registro histórico anterior a H63)
 
 Validaciones ejecutadas localmente sobre los cambios de esta rama:
 
@@ -108,7 +108,7 @@ La prueba unitaria del publicador no sustituye la evidencia de la API remota. Ta
 
 ## Cambios de master preservados
 
-Se integró `origin/master` con merge normal, sin conflictos, mediante `bb69976` (`merge: integrar cambios recientes de master`). La integración incluye los cambios y pruebas de Catálogo de `726fba0`; no se sobrescribieron funcionalidades de otros integrantes ni se reescribió historial publicado.
+La base previa ya contenía el merge `bb69976` de cambios anteriores de `master`. Para esta revisión H63 se sincronizó el avance posterior de `master` (`5ba4eaf`) mediante merge normal `56cb0e0`, conservando el pipeline H4 y añadiendo las pruebas de release/autenticación recientes. No se reescribió historial publicado ni se cambió el mecanismo GitHub–Vercel.
 
 ## Configuración externa pendiente
 
