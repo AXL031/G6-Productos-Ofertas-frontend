@@ -1,4 +1,5 @@
 import type { TaxonomyGatewayTransport } from "../adapters/httpProductTypeAdapter";
+import { isGatewayTokenInvalid } from "../../shared/isGatewayTokenInvalid";
 
 function secureGatewayOrigin(value: string): string {
   const url = new URL(value);
@@ -66,16 +67,7 @@ export function createAuthenticatedTaxonomyGateway(
         });
       let response = await send(token);
       signal.throwIfAborted();
-      if (response.status === 401) {
-        let code: unknown;
-        try {
-          const problem: unknown = await response.json();
-          if (problem && typeof problem === "object" && !Array.isArray(problem))
-            code = (problem as Record<string, unknown>).code;
-        } catch {
-          // An unknown 401 must never rotate or replay the request.
-        }
-        if (code !== "TOKEN_INVALIDO") throw new TaxonomyGatewayError(401);
+      if (await isGatewayTokenInvalid(response)) {
         const renewed = await session.refreshAccessToken(token, signal);
         signal.throwIfAborted();
         if (!renewed) {
@@ -84,10 +76,7 @@ export function createAuthenticatedTaxonomyGateway(
         }
         response = await send(renewed);
         signal.throwIfAborted();
-        if (response.status === 401) {
-          const problem = await response.clone().json().catch(() => null) as { code?: unknown } | null;
-          if (problem?.code === "TOKEN_INVALIDO") session.invalidateAccessToken(renewed);
-        }
+        if (await isGatewayTokenInvalid(response)) session.invalidateAccessToken(renewed);
       }
       if (!response.ok) throw new TaxonomyGatewayError(response.status);
       return response;

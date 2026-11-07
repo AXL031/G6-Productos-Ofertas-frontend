@@ -25,6 +25,7 @@ import type { PromotionCatalogRepository } from "../services/catalogRepository";
 import type { PromotionServices } from "../services/promotionServices";
 
 import { createHttpPromotionCatalog } from "./httpPromotionCatalog";
+import { isGatewayTokenInvalid } from "../../shared/isGatewayTokenInvalid";
 
 export interface PromotionHttpOptions {
   gatewayOrigin: string;
@@ -342,29 +343,17 @@ export function createHttpPromotionServices(
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
     let response = await send(token);
-    if (response.status === 401 && options.refreshAccessToken) {
-      let code: unknown;
-      try {
-        const problem: unknown = await response.json();
-        code = record(problem).code;
-      } catch {
-        /* An unknown 401 never triggers refresh or replay. */
-      }
-      if (code === "TOKEN_INVALIDO") {
-        if (method === "GET") {
-          const refresh = options.refreshAccessToken;
-          const renewed = await sessionToken(() => refresh(token, bounded));
-          bounded.throwIfAborted();
-          if (renewed && !/[\r\n]/.test(renewed)) {
-            response = await send(renewed);
-            if (response.status === 401)
-              options.invalidateAccessToken?.(renewed);
-          }
-        } else {
-          // Preserve the existing no-retry rule for writes; the UI reports the
-          // failed action and requires a new explicit authenticated attempt.
-          options.invalidateAccessToken?.(token);
-        }
+    const refresh = options.refreshAccessToken;
+    if (refresh && await isGatewayTokenInvalid(response)) {
+      if (method === "GET") {
+        const renewed = await sessionToken(() => refresh(token, bounded));
+        bounded.throwIfAborted();
+        if (renewed && !/[\r\n]/.test(renewed)) {
+          response = await send(renewed);
+          if (await isGatewayTokenInvalid(response)) options.invalidateAccessToken?.(renewed);
+        } else options.invalidateAccessToken?.(token);
+      } else {
+        options.invalidateAccessToken?.(token);
       }
     }
     if (!response.ok) throw new HttpFailure(response.status);
