@@ -15,7 +15,7 @@ const path = new URLSearchParams(location.search).get("path") ?? "/productos/nue
 history.replaceState(null, "", path);
 const services = createOptionalCatalogHttpServices("https://gateway.test")!;
 const pricing = await createPricingRuntime("api");
-const { App } = await import("../../src/app/App");
+const { FeatureTestApp: App } = await import("./FeatureTestApp");
 createRoot(document.getElementById("root")!).render(
   <MantineProvider theme={theme} cssVariablesResolver={cssVariablesResolver} forceColorScheme="light">
     <DataModeContext.Provider value="api"><CatalogServicesContext.Provider value={services}>

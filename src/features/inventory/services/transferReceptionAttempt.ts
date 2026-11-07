@@ -1,3 +1,4 @@
+import { identityStorageKey } from "../../shared/mockIdentity";
 import { InventoryError } from "./inventoryErrors";
 import type {
   DispositionType,
@@ -64,7 +65,7 @@ export interface TransferReceptionDraftInput {
   readonly note?: string;
 }
 
-const STORAGE_KEY = "inventory.transferReceptionAttempts.v1";
+const STORAGE_KEY = identityStorageKey("inventory.transferReceptionAttempts.v1");
 const STORAGE_VERSION = 2;
 
 const DISPOSITIONS: readonly string[] = [

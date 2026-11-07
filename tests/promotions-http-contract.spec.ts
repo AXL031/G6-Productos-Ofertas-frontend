@@ -24,6 +24,28 @@ const parent = {
   },
   puedeCambiarModalidad: false,
 };
+
+test("logout elimina baselines de edición de la identidad anterior", async () => {
+  await fixture(async (origin, requests) => {
+    let version = 0;
+    let changed = () => {};
+    const api = createHttpPromotionServices({
+      gatewayOrigin: origin,
+      getAccessToken: async () => "synthetic-unit-token",
+      sessionEvents: { version: () => version, subscribe: notify => { changed = notify; return () => {}; } },
+    });
+    const signal = new AbortController().signal;
+    const previous = await api.campaigns.read("parent", signal);
+    version++;
+    changed();
+    await expect(api.campaigns.save("parent", { ...previous!.configuration, name: "Identidad B" }, signal)).rejects.toMatchObject({ kind: "conflict" });
+    expect(requests).toHaveLength(1);
+    const current = await api.campaigns.read("parent", signal);
+    await api.campaigns.save("parent", { ...current!.configuration, name: "Consulta nueva" }, signal);
+    expect(requests.at(-1)?.body).toEqual({ nombre: "Consulta nueva" });
+    api.dispose();
+  });
+});
 async function fixture(
   work: (
     origin: string,
