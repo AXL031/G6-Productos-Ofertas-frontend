@@ -333,6 +333,34 @@ for (const path of ["/", "/productos", "/productos/nuevo", "/precios", "/inventa
     expect(calls).toEqual([]);
   });
 }
+for (const mode of ["lost", "500"] as const) test(`R4-05 logout ${mode}: limpieza local incondicional, atrás y recarga`, async ({ page }) => {
+  let logoutRequests = 0;
+  await page.route(base + "/auth/logout", async route => {
+    logoutRequests++;
+    if (mode === "500") await route.fulfill({ status: 500, json: {} });
+    else await route.abort("failed");
+  });
+  await page.goto("/precios");
+  await login(page);
+  await expect(page.getByRole("navigation", { name: "Navegación de la aplicación", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Consultar precios", exact: true }).click();
+  await page.getByRole("button", { name: "Cerrar sesión", exact: true }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect.poll(() => logoutRequests).toBe(1);
+  await page.waitForFunction(() => performance.getEntriesByType("navigation")[0] && (performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming).type === "reload");
+  await page.goBack();
+  if (page.url() !== "about:blank") {
+    await expect(page.getByRole("button", { name: "Ingresar al panel", exact: true })).toBeVisible();
+    await expect(page.getByRole("navigation")).toHaveCount(0);
+  }
+  await page.goto("/precios");
+  await expect(page).toHaveURL(/\/login$/);
+  await page.reload();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole("navigation")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Ingresar al panel", exact: true })).toBeVisible();
+});
+
 test("login conserva destino interno; logout sin red, atrás y recarga no recuperan sesión", async ({ page }) => {
   await page.goto("/combos?vista=lista");
   await login(page);

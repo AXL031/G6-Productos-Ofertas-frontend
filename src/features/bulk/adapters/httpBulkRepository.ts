@@ -137,13 +137,19 @@ export function createHttpBulkRepository(transport: BulkHttpTransport, session: 
     let response: Response;
     try { response = await request(token); }
     catch (error) { if (signal?.aborted || bounded.aborted) throw error; throw new BulkRepositoryError("No se pudo conectar con Gateway. Revisa la conexión e inténtalo de nuevo.", "communication"); }
-    if (response.status === 401 && method === "GET") {
+    if (response.status === 401) {
       const problem = await response.clone().json().catch(() => null) as { code?: unknown } | null;
       if (problem?.code === "TOKEN_INVALIDO") {
-        const renewed = await session.refreshAccessToken(token, bounded).catch(() => null);
-        if (renewed && !/[\r\n]/.test(renewed)) {
-          response = await request(renewed).catch(() => { throw new BulkRepositoryError("No se pudo conectar con Gateway.", "communication"); });
-          if (response.status === 401) session.invalidateAccessToken(renewed);
+        if (method === "POST") session.invalidateAccessToken(token);
+        else {
+          const renewed = await session.refreshAccessToken(token, bounded).catch(() => null);
+          if (renewed && !/[\r\n]/.test(renewed)) {
+            response = await request(renewed).catch(() => { throw new BulkRepositoryError("No se pudo conectar con Gateway.", "communication"); });
+            if (response.status === 401) {
+              const retryProblem = await response.clone().json().catch(() => null) as { code?: unknown } | null;
+              if (retryProblem?.code === "TOKEN_INVALIDO") session.invalidateAccessToken(renewed);
+            }
+          } else session.invalidateAccessToken(token);
         }
       }
     }

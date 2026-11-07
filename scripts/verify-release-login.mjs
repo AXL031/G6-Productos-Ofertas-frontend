@@ -19,8 +19,8 @@ try {
     onMfaPending: () => console.log("MFA pendiente: el operador autorizado debe solicitar y escribir el código real en esta misma ventana. No se registra el código."),
   });
   console.log(result.mfaCompleted
-    ? "PASS aceptación de login con desafío MFA real completado, lectura, navegación y logout. Revisar acta bilateral y cada provider."
-    : "PASS login, lectura, navegación y logout en destinos aprobados. No acredita aceptación MFA ni homologación general.");
+    ? "PASS recorrido con desafío MFA completado, lectura con Bearer de sesión, navegación y logout local/204 G7. Revocación efectiva y homologación pendientes del acta bilateral."
+    : "PASS login contractual, lectura con Bearer de sesión, navegación y logout local/204 G7 en destinos aprobados. No acredita MFA real, revocación efectiva ni homologación general.");
 } catch (error) {
   // Browser errors can contain form values or URLs: never print raw messages.
   console.error(error instanceof Error && error.message === "RELEASE_MFA_PENDING"

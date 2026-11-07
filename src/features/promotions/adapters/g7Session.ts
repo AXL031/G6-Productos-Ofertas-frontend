@@ -322,15 +322,14 @@ export class G7Session {
   };
   async logout() {
     const token = this.#tokens?.refreshToken;
+    // Start keepalive before subscribers reload the realm. Never wait for G7
+    // to discard local access; failed/unknown revocation stays a gate failure.
+    const revocation = token
+      ? this.#post("/auth/logout", { refreshToken: token }, 204).catch(() => {})
+      : undefined;
     this.#clear(this.#challenge && !this.#tokens
       ? "Cancelaste la verificación. Puedes iniciar sesión de nuevo."
       : "Cerraste sesión.", "info");
-    if (token) {
-      try {
-        await this.#post("/auth/logout", { refreshToken: token }, 204);
-      } catch {
-        /* Local logout is unconditional. */
-      }
-    }
+    await revocation;
   }
 }

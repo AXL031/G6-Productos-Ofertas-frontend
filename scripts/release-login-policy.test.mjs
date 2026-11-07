@@ -6,6 +6,13 @@ const approved = {
   previewUrl: "https://preview.example.test", approvedPreviewOrigin: "https://preview.example.test",
   approvedG7ApiBase: "https://identity.example.test/api/v1", approvedGatewayOrigin: "https://gateway.example.test",
 };
+test("R4-02 permite paginación inicial y solo padres acreditados por Cupones", () => {
+  const policy = releasePolicy(approved);
+  const allow = path => permittedRequest(policy, { url: policy.gateway + path, method: "GET", resourceType: "fetch" }, { promotionIds: new Set(["parent-id"]) });
+  assert.equal(allow("/api/v1/cupones?pagina=1&tamanio=10"), true);
+  assert.equal(allow("/api/v1/promociones/parent-id"), true);
+  for (const path of ["/api/v1/promociones/other", "/api/v1/promociones/parent-id?extra=1", "/api/v1/cupones?tamanio=10&tamanio=10", "/api/v1/cupones?constructor=x"]) assert.equal(allow(path), false);
+});
 test("política HTTPS exacta e integraciones efectivas aprobadas", () => {
   const policy = releasePolicy(approved);
   verifyIntegrations(policy, { g7ApiBase: approved.approvedG7ApiBase, gatewayOrigin: approved.approvedGatewayOrigin });
@@ -61,3 +68,10 @@ test("solo envía auth a los endpoints G7 exactos y lecturas a Gateway", () => {
   assert.equal(allow(policy.preview + "/collect", "GET"), false);
   assert.equal(allow(policy.preview + "/assets/app.js", "GET", "script"), true);
 });
+
+for (const path of ["/api/v1/productos", "/api/v1/usuarios", "/api/v1/cupones?pagina=1&pagina=2", "/api/v1/cupones?tamanio=0", "/api/v1/cupones?pagina=2", "/api/v1/cupones?token=unexpected", "/api/v1/cupones?estado=ACTIVO"]) {
+  test(`R4-02 bloquea petición ajena al recorrido ${path}`, () => {
+    const policy = releasePolicy(approved);
+    assert.equal(permittedRequest(policy, { url: policy.gateway + path, method: "GET", resourceType: "fetch" }), false);
+  });
+}

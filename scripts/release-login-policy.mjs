@@ -39,7 +39,7 @@ export function verifyPreviewLocation(policy, value) {
   }
 }
 
-export function permittedRequest(policy, { url: value, method, resourceType }) {
+export function permittedRequest(policy, { url: value, method, resourceType }, { promotionIds = new Set() } = {}) {
   let url;
   try { url = new URL(value); } catch { return false; }
   if (url.username || url.password || url.hash) return false;
@@ -47,7 +47,17 @@ export function permittedRequest(policy, { url: value, method, resourceType }) {
   const apiRequest = ["fetch", "xhr"].includes(resourceType) || (method === "OPTIONS" && resourceType === "other");
   const authPaths = ["login", "otp/solicitar", "otp/verificar", "refresh", "logout"].map(path => `${policy.g7Base}/auth/${path}`);
   if (authPaths.includes(url.href)) return apiRequest && (method === "POST" || method === "OPTIONS");
-  if (url.origin === policy.gateway && url.pathname.startsWith("/api/v1/")) return apiRequest && (method === "GET" || method === "OPTIONS");
+  if (url.origin === policy.gateway && url.pathname.startsWith("/api/v1/")) {
+    if (!apiRequest || !["GET", "OPTIONS"].includes(method)) return false;
+    // This gate visits only the initial coupon page, then Pricing. Coupon
+    // enrichment may read only parents named by that authenticated response.
+    if (url.pathname === "/api/v1/cupones") {
+      const expected = { pagina: "1", tamanio: "10" };
+      return [...url.searchParams].every(([key, value]) => expected[key] === value && url.searchParams.getAll(key).length === 1);
+    }
+    const parent = url.pathname.match(/^\/api\/v1\/promociones\/([^/]+)$/);
+    return !url.search && !!parent && promotionIds.has(parent[1]);
+  }
   if (url.origin !== policy.preview || method !== "GET" || url.search) return false;
   return ["script", "stylesheet", "image", "font"].includes(resourceType);
 }

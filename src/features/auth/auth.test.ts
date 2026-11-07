@@ -31,6 +31,25 @@ const dto = (version = 1) => ({
   refreshToken: `isolated-refresh-${version}`, tokenType: "Bearer", expiresIn: 900,
   usuario: { id: "11111111-1111-4111-8111-111111111111", nombreCompleto: "Prueba", correo: "test@example.test", roles: ["GESTOR_COMERCIAL"] },
 });
+
+it("R4-05 inicia revocación antes de notificar logout y limpia sin esperar respuesta", async () => {
+  let started = false, startedWhenCleared = false;
+  let finish: (value: Response) => void = () => {};
+  vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
+    if (String(input).endsWith("/auth/login")) return Response.json(dto());
+    started = true;
+    return new Promise<Response>(resolve => { finish = resolve; });
+  });
+  const session = createOptionalAuthSession("https://g7.example.test/api/v1")!;
+  await session.login("test@example.test", "password");
+  session.subscribe(() => { if (!session.snapshot().user) startedWhenCleared = started; });
+  const logout = session.logout();
+  expect(session.snapshot().user).toBeNull();
+  finish(new Response(null, { status: 500 }));
+  await logout;
+  expect(startedWhenCleared).toBe(true);
+  expect(session.snapshot().user).toBeNull();
+});
 describe("Catálogo consume la sesión existente sin repetir escrituras", () => {
   it.each([null, { code: "DESCONOCIDO" }, "respuesta ilegible"])("401 desconocido conserva sesión: %s", async body => {
     const fetcher = vi.spyOn(globalThis, "fetch").mockImplementation(async input => String(input).endsWith("/auth/login") ? Response.json(dto()) : typeof body === "string" ? new Response(body, { status: 401, headers: { "Content-Type": "text/html" } }) : Response.json(body, { status: 401 }));

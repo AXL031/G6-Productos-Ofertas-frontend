@@ -19,6 +19,7 @@ function secureGatewayOrigin(value: string): string {
 export interface TaxonomySession {
   getAccessToken(signal: AbortSignal): Promise<string | null>;
   refreshAccessToken(rejected: string, signal: AbortSignal): Promise<string | null>;
+  invalidateAccessToken(rejected: string): void;
 }
 
 export class TaxonomySessionRequiredError extends Error {
@@ -77,9 +78,16 @@ export function createAuthenticatedTaxonomyGateway(
         if (code !== "TOKEN_INVALIDO") throw new TaxonomyGatewayError(401);
         const renewed = await session.refreshAccessToken(token, signal);
         signal.throwIfAborted();
-        if (!renewed) throw new TaxonomyGatewayError(401, "TOKEN_INVALIDO");
+        if (!renewed) {
+          session.invalidateAccessToken(token);
+          throw new TaxonomyGatewayError(401, "TOKEN_INVALIDO");
+        }
         response = await send(renewed);
         signal.throwIfAborted();
+        if (response.status === 401) {
+          const problem = await response.clone().json().catch(() => null) as { code?: unknown } | null;
+          if (problem?.code === "TOKEN_INVALIDO") session.invalidateAccessToken(renewed);
+        }
       }
       if (!response.ok) throw new TaxonomyGatewayError(response.status);
       return response;
