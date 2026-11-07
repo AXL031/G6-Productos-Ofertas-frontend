@@ -25,10 +25,13 @@ function AuthenticatedRoutes() {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
     const validate = async () => {
-      setValidated(null);
-      const token = await session.getAccessToken(controller.signal);
+      // Keep an already validated identity mounted during the shared refresh.
+      // Transports still await getAccessToken; expired tokens cannot authorize
+      // new operations. A null result or session invalidation closes access.
+      const token = await session.getAccessToken(controller.signal).catch(() => null);
       if (controller.signal.aborted) return;
       if (token) setValidated({ session, userId });
+      else setValidated(null);
       const expiresAt = session.snapshot().expiresAt;
       if (token && expiresAt) timer = setTimeout(() => { void validate().catch(() => {}); }, Math.max(1, expiresAt - Date.now()));
     };

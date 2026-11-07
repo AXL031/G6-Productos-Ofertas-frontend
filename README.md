@@ -274,9 +274,17 @@ MFA, expiración, renovación, roles, 401/403, logout y separación de identidad
 Sus credenciales son fixtures; no es homologación real.
 
 Para comprobar una configuración candidata existe `npm run verify:release:login`.
-Requiere `G6_RELEASE_PREVIEW_URL`, `G6_RELEASE_TEST_EMAIL` y
-`G6_RELEASE_TEST_PASSWORD` en el entorno de Node (nunca `VITE_*`); falla si el
-login no permite navegar o queda MFA pendiente. No hace escrituras comerciales,
-no registra credenciales y no genera trazas. La validación externa con MFA y
-cada provider continúa siendo necesaria. Evidencia y límites reales en
+Requiere aprobaciones independientes `G6_RELEASE_APPROVED_PREVIEW_ORIGIN`,
+`G6_RELEASE_APPROVED_G7_API_BASE` y `G6_RELEASE_APPROVED_GATEWAY_ORIGIN`, además
+de `G6_RELEASE_PREVIEW_URL`, `G6_RELEASE_TEST_EMAIL` y `G6_RELEASE_TEST_PASSWORD`
+en el entorno de Node (nunca `VITE_*`). Exige HTTPS/origen exacto, comprueba las
+bases efectivas antes de rellenar campos y bloquea redirecciones de documentos y
+peticiones de autenticación. El CLI productivo no admite HTTP ni un flag de fixture.
+
+Sin intervención manual falla si MFA queda pendiente. Para la aceptación real,
+`npm run verify:release:login -- --mfa-manual` abre una ventana donde el operador
+autorizado solicita e introduce el OTP real; no recibe OTP por argumentos o env.
+No hace escrituras comerciales, no registra credenciales y no genera trazas.
+Seguir el [procedimiento bilateral y acta de aceptación MFA](docs/ACEPTACION_BILATERAL_G7_MFA.md).
+La aceptación externa de cada provider continúa siendo necesaria. Evidencia y límites reales en
 [LOGIN_GENERAL.md](docs/LOGIN_GENERAL.md) y [auditoría](docs/AUDITORIA_LOGIN_PR70.md).

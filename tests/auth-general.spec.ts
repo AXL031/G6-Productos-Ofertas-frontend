@@ -13,6 +13,9 @@ let failure: string;
 let expiry: number;
 let roles: string[];
 let demo: boolean;
+let fullName: string;
+let holdRefresh: boolean;
+let releaseRefresh: (() => void) | undefined;
 let calls: { path: string; body: Record<string, unknown> }[];
 const dto = {
   accessToken: "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJpc29sYXRlZCJ9.signature",
@@ -20,7 +23,7 @@ const dto = {
   usuario: { id: "11111111-1111-4111-8111-111111111111", nombreCompleto: "Gestora de prueba", correo: "isolated@example.test", roles: ["GESTOR_COMERCIAL"] },
 };
 test.beforeEach(async ({ page }) => {
-  mfa = false; failure = ""; expiry = 900; calls = []; roles = ["GESTOR_COMERCIAL"]; demo = false;
+  mfa = false; failure = ""; expiry = 900; calls = []; roles = ["GESTOR_COMERCIAL"]; demo = false; fullName = dto.usuario.nombreCompleto; holdRefresh = false; releaseRefresh = undefined;
   provider = createServer(async (req, res) => {
     res.setHeader("Access-Control-Allow-Origin", `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? 5173}`);
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -33,10 +36,11 @@ test.beforeEach(async ({ page }) => {
     calls.push({ path, body });
     res.setHeader("Content-Type", "application/json");
     if (path.endsWith("/logout")) { req.socket.destroy(); return; }
+    if (path.endsWith("/refresh") && holdRefresh) await new Promise<void>(resolve => { releaseRefresh = resolve; });
     if (failure) { res.writeHead(failure === "UNAVAILABLE" ? 503 : failure === "OTP_EXPIRADO" ? 410 : 401).end(JSON.stringify({ code: failure, detail: "SENSITIVE_DETAIL" })); return; }
     if (path.endsWith("/login") && mfa) { res.end(JSON.stringify({ mfaRequerido: true, challengeToken: "isolated-challenge", expiraEn: 300 })); return; }
     if (path.endsWith("/solicitar")) { res.writeHead(202).end("{}"); return; }
-    res.end(JSON.stringify({ ...dto, usuario: { ...dto.usuario, roles }, expiresIn: expiry, ...(path.endsWith("/refresh") ? { refreshToken: `isolated-rotation-${calls.length}` } : {}) }));
+    res.end(JSON.stringify({ ...dto, usuario: { ...dto.usuario, nombreCompleto: fullName, roles }, expiresIn: expiry, ...(path.endsWith("/refresh") ? { refreshToken: `isolated-rotation-${calls.length}` } : {}) }));
   });
   provider.listen(0, "127.0.0.1");
   await once(provider, "listening");
@@ -53,6 +57,7 @@ test.beforeEach(async ({ page }) => {
   });
 });
 test.afterEach(async () => {
+  releaseRefresh?.();
   provider.closeAllConnections();
   await new Promise<void>(resolve => provider.close(() => resolve()));
 });
@@ -60,6 +65,136 @@ async function login(page: Page) {
   await page.getByRole("textbox", { name: "Correo electrónico", exact: true }).fill("isolated@example.test");
   await page.getByRole("textbox", { name: "Contraseña", exact: true }).fill("isolated-password");
   await page.getByRole("button", { name: "Ingresar al panel", exact: true }).click();
+}
+
+async function draftBeforeRefresh(page: Page) {
+  const writes: string[] = [];
+  page.on("request", request => {
+    if (request.url().startsWith(`http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? 5173}/api/v1/`) && ["POST", "PATCH", "PUT", "DELETE"].includes(request.method())) writes.push(request.method());
+  });
+  await page.clock.install({ time: new Date("2026-11-06T12:00:00Z") });
+  expiry = 120;
+  await page.route(`http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? 5173}/api/v1/**`, route => {
+    const path = new URL(route.request().url()).pathname;
+    const body = path.endsWith("/categorias") ? { categories: [{ categoria_id: "cat-api", name: "Categoría", status: "ACTIVA" }] }
+      : path.endsWith("/marcas") ? { brands: [{ marca_id: "brand-api", name: "Marca", status: "ACTIVA" }] }
+      : path.endsWith("/tipos-producto") ? { items: [{ tipoProductoId: "type-api", nombre: "Tipo", estado: "ACTIVO" }], meta: { pagina: 1, tamanio: 100, total: 1, totalPaginas: 1 } }
+      : { tipoProducto: { tipoProductoId: "type-api" }, schemaVersion: 1, caracteristicas: [] };
+    return route.fulfill({ json: body });
+  });
+  await page.goto("/productos/nuevo");
+  await login(page);
+  const input = page.getByLabel("Nombre del producto");
+  await input.fill("Borrador sin guardar");
+  await expect(page.getByRole("button", { name: "Guardar borrador", exact: true })).toBeEnabled();
+  const node = await input.elementHandle();
+  const header = await page.locator(".mantine-AppShell-header").elementHandle();
+  holdRefresh = true;
+  await page.clock.fastForward(120001);
+  await expect.poll(() => Boolean(releaseRefresh)).toBe(true);
+  return { input, node: node!, header: header!, writes };
+}
+
+test("regresión R2: refresh demorado conserva el borrador y los mismos nodos DOM", async ({ page }) => {
+  const { input, node, header, writes } = await draftBeforeRefresh(page);
+  const renewed = page.waitForResponse(response => response.url().endsWith("/auth/refresh") && response.status() === 200);
+  void renewed.catch(() => undefined);
+  try {
+    expect(await node.evaluate(element => element.isConnected)).toBe(true);
+    expect(await header.evaluate(element => element.isConnected)).toBe(true);
+    await expect(input).toHaveValue("Borrador sin guardar");
+  } finally { holdRefresh = false; expiry = 900; releaseRefresh?.(); }
+  await (await renewed).finished();
+  await page.clock.fastForward(1000);
+  await expect.poll(() => calls.filter(call => call.path.endsWith("/refresh")).length).toBeGreaterThanOrEqual(1);
+  await expect(input).toHaveValue("Borrador sin guardar");
+  expect(await node.evaluate(element => element.isConnected)).toBe(true);
+  expect(await header.evaluate(element => element.isConnected)).toBe(true);
+  expect(writes).toEqual([]);
+});
+
+test("regresión R2: refresh rechazado retira el borrador sin reintentar escrituras", async ({ page }) => {
+  const { writes } = await draftBeforeRefresh(page);
+  failure = "REFRESCO_INVALIDO";
+  holdRefresh = false;
+  releaseRefresh?.();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole("heading", { name: "Iniciar sesión", exact: true })).toBeVisible();
+  await expect(page.getByRole("navigation")).toHaveCount(0);
+  await expect(page.getByLabel("Nombre del producto")).toHaveCount(0);
+  expect(writes).toEqual([]);
+});
+
+test("regresión R2: error OTP mantiene foco en el mensaje al terminar busy", async ({ page }) => {
+  mfa = true;
+  await page.goto("/login");
+  await login(page);
+  await expect(page.getByLabel("Código de verificación")).toBeFocused();
+  for (const code of ["CODIGO_INVALIDO", "OTP_EXPIRADO", "CODIGO_INVALIDO"]) {
+    failure = code;
+    await page.getByLabel("Código de verificación").fill("000000");
+    await page.getByRole("button", { name: "Verificar código", exact: true }).click();
+    await expect(page.getByRole("alert").locator("..")).toBeFocused();
+    await expect(page.getByLabel("Código de verificación")).not.toBeFocused();
+    await expect(page.getByRole("navigation")).toHaveCount(0);
+  }
+});
+
+test("regresión R2: cancelar MFA no anuncia cierre de una sesión autenticada", async ({ page }) => {
+  mfa = true;
+  await page.goto("/login");
+  await login(page);
+  await page.getByRole("button", { name: "Volver al inicio de sesión" }).click();
+  await expect(page.getByRole("status")).toContainText("Cancelaste la verificación");
+  await expect(page.getByText("Cerraste sesión.", { exact: true })).toHaveCount(0);
+  expect(calls.filter(call => call.path.endsWith("/logout"))).toHaveLength(0);
+  await expect(page.getByRole("heading", { name: "Iniciar sesión", exact: true })).toBeVisible();
+});
+
+test("regresión R2: brandBar permanece dentro de la cabecera en ancho y altura pequeños", async ({ page }) => {
+  for (const width of [320, 375, 768, 1024]) {
+    await page.setViewportSize({ width, height: 568 });
+    await page.goto("/login");
+    const region = page.getByRole("region", { name: "Inka Athletics, Productos y Ofertas" });
+    const panel = await region.boundingBox();
+    const bar = await region.locator("header").boundingBox();
+    expect(bar!.y).toBeGreaterThanOrEqual(panel!.y);
+    expect(bar!.y + bar!.height).toBeLessThanOrEqual(panel!.y + panel!.height);
+  }
+});
+
+for (const width of [320, 375, 768, 1024]) {
+  test(`regresión R2: encabezado, identidad y menú utilizables a ${width}px`, async ({ page }) => {
+    fullName = "Gabriela María de los Ángeles Fernández de la Fuente Gestora Comercial con nombre extenso";
+    await page.setViewportSize({ width, height: 740 });
+    await page.goto("/combos");
+    await login(page);
+    const header = page.locator(".mantine-AppShell-header");
+    const logout = header.getByRole("button", { name: "Cerrar sesión", exact: true });
+    await expect(logout).toBeVisible();
+    const headerBox = await header.boundingBox(), button = await logout.boundingBox();
+    expect(button!.x).toBeGreaterThanOrEqual(0);
+    expect(button!.x + button!.width).toBeLessThanOrEqual(width);
+    expect(button!.y + button!.height).toBeLessThanOrEqual(headerBox!.y + headerBox!.height);
+    expect(await header.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    const nav = page.getByRole("navigation", { name: "Navegación de la aplicación", exact: true });
+    if (width < 768) {
+      await expect(nav).toBeHidden();
+      await page.getByRole("button", { name: "Abrir menú de navegación" }).focus();
+      await page.keyboard.press("Space");
+      await expect(page.getByRole("button", { name: "Cerrar menú de navegación" })).toHaveAttribute("aria-expanded", "true");
+    }
+    await expect(nav).toBeVisible();
+    const link = nav.getByRole("link", { name: "Control de stock", exact: true });
+    await link.scrollIntoViewIfNeeded();
+    await link.click();
+    await expect(page).toHaveURL(/\/inventario$/);
+    if (width < 768) await expect(nav).toBeHidden();
+    await expect(logout).toBeVisible();
+    await page.screenshot({ path: test.info().outputPath(`encabezado-${width}.png`) });
+    await logout.click();
+    await expect(page).toHaveURL(/\/login$/);
+  });
 }
 
 test("el panel deniega roles ajenos y reevalúa el rol al renovar", async ({ page }) => {

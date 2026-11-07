@@ -86,10 +86,13 @@
   .intro { margin-bottom: 16px; }
   .fields { gap: 16px; }
   .copyright { margin-top: 16px; }
-  .brandBar { top: 32px; }
   .brandCopy { top: 30%; }
   .description { margin-top: 24px; }
   .watermark { font-size: min(208px, 22svh); bottom: 6%; }
+}
+
+@media (min-width: 768px) and (max-height: 800px) {
+  .brandBar { top: 32px; }
 }
 
 @media (max-height: 680px) {

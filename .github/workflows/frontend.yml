@@ -100,6 +100,8 @@ jobs:
       - run: npm ci
       - name: Instalar Chromium para verificaciones de preview
         run: npx playwright install --with-deps chromium
+      - name: Probar límites del verificador antes de introducir credenciales
+        run: npm run test:release:boundary
       - name: Probar panel compilado con G7 y Gateway contractuales aislados (no homologación real)
         run: npm run test:production:auth
       - name: Compilar modo mock

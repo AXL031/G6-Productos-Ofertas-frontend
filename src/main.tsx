@@ -22,6 +22,12 @@ const root = createRoot(document.getElementById("root")!);
 const mode = resolveDataMode(import.meta.env.VITE_DATA_MODE, import.meta.env.DEV);
 const gatewayOrigin = import.meta.env.VITE_GATEWAY_ORIGIN as string | undefined;
 const securityApiBase = import.meta.env.VITE_G7_API_BASE as string | undefined;
+// Public URLs from the same configuration consumed by the transports. The gate
+// compares these values with independent approvals, then restricts real traffic.
+const integrations = document.createElement("meta");
+integrations.name = "g6-auth-integrations";
+integrations.content = JSON.stringify({ g7ApiBase: securityApiBase ?? null, gatewayOrigin: gatewayOrigin ?? null });
+document.head.append(integrations);
 let notice: unknown;
 try {
   notice = sessionStorage.getItem("g6:session-notice");

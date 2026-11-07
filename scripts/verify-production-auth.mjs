@@ -133,9 +133,9 @@ try {
           else { await page.getByRole("navigation", { name: "Navegación de la aplicación" }).waitFor(); check(fixture.state.calls.filter(c => c.path.endsWith("/auth/refresh")).length === refreshes, "401 desconocido y 403 no renuevan sesión"); }
         }
         fixture.state.gatewayStatus = 200; fixture.state.mfa = false;
-        await run(["scripts/verify-release-login.mjs"], { ...env,
-          G6_RELEASE_PREVIEW_URL: base, G6_RELEASE_TEST_EMAIL: "a@example.test",
-          G6_RELEASE_TEST_PASSWORD: "isolated-fixture-password" }); checks++;
+        await run(["scripts/testing/verify-isolated-release.mjs"], { ...env,
+          G6_ISOLATED_PREVIEW_URL: base, G6_ISOLATED_G7_API_BASE: fixture.origin + "/g7/api/v1",
+          G6_ISOLATED_GATEWAY_ORIGIN: fixture.origin }); checks++;
       }
       check(errors.length === 0, "sin errores JavaScript");
       check(!/fixture-refresh|eyJhbGci|isolated-fixture-password/.test(await page.evaluate(() => JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage }, cookie: document.cookie }))), "sin secretos persistidos");

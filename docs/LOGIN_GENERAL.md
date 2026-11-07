@@ -3,6 +3,8 @@
 > Seguimiento de auditoría de PR #70: [AUDITORIA_LOGIN_PR70.md](AUDITORIA_LOGIN_PR70.md).
 > Los resultados anteriores de este documento son históricos; no sustituyen la
 > matriz y las validaciones de la auditoría.
+> Segunda revisión sobre `8c5b70e`: [AUDITORIA_LOGIN_PR70_R2.md](AUDITORIA_LOGIN_PR70_R2.md).
+> Aceptación externa con MFA real: [procedimiento bilateral](ACEPTACION_BILATERAL_G7_MFA.md).
 
 Fecha de revisión: 06/11/2026. Rama de desarrollo: `poma`. Base comprobada antes
 de implementar: `poma = origin/poma = origin/master = 4d1b85969816f2879a6f6f17b3553cccba0ab764`.

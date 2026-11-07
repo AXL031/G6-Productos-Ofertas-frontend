@@ -11,9 +11,12 @@ export function LoginForm({ session, view }: { session: G7Session | null; view: 
   const [codigo, setCodigo] = useState("");
   const [visible, setVisible] = useState(false);
   const feedback = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (view.notice && view.noticeSemantic === "error") feedback.current?.focus(); }, [view.notice, view.noticeSemantic]);
   const codeInput = useRef<HTMLInputElement>(null);
-  useEffect(() => { if (view.mfa && !view.busy) codeInput.current?.focus(); }, [view.mfa, view.busy]);
+  useEffect(() => {
+    if (view.busy) return;
+    if (view.notice && view.noticeSemantic === "error") feedback.current?.focus();
+    else if (view.mfa) codeInput.current?.focus();
+  }, [view.mfa, view.busy, view.notice, view.noticeSemantic]);
   const disabled = !session || view.busy;
   return (
     <form onSubmit={(event) => {
