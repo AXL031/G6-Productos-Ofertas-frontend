@@ -29,14 +29,14 @@ npx playwright install chromium
 Después, ejecuta las validaciones:
 
 ```sh
-npm test                  # pruebas unitarias de Combos, Bulk y Pricing con Vitest
-npm run test:e2e          # suite E2E completa de Playwright
-npm run test:ci           # agregado local: unitarias + E2E + harness HTTP simulado
+npm test                  # pruebas unitarias de Combos, Carga masiva, Inventario y Precios con Vitest
+npm run test:e2e          # suite completa de extremo a extremo con Playwright
+npm run test:ci           # agregado local: unitarias + extremo a extremo + arnés HTTP simulado
 npm run test:unit:combos  # solo unitarias de Combos
 npm run test:unit:bulk    # solo unitarias de Bulk
 npm run test:e2e:bulk:api # interfaz Bulk contra servidor HTTP aislado
 npm run test:unit:pricing # adaptador HTTP de Pricing; transporte simulado
-npm run test:e2e:pricing  # harness HTTP de Pricing a 1440 × 900; respuestas simuladas
+npm run test:e2e:pricing  # arnés HTTP de Precios a 1440 × 900; respuestas simuladas
 ```
 
 Para construir y servir la versión compilada:
@@ -47,12 +47,11 @@ npm run build
 npm run preview
 ```
 
-`npm run preview` sirve `dist/` localmente; no publica ni despliega la aplicación. El workflow [frontend.yml](.github/workflows/frontend.yml) ejecuta typecheck, build, lint, pruebas y verificaciones de build/preview para ambos modos. Que el workflow exista no implica que haya corrido para un cambio concreto.
+`npm run preview` sirve `dist/` localmente; no publica ni despliega la aplicación. El flujo [Integración continua del frontend](.github/workflows/frontend.yml) separa clasificación de cambios, revisión de estilo, tipos, pruebas unitarias por módulo, compilaciones de demostración y API, verificaciones de compilación/vista previa, pruebas rápidas y cuatro fragmentos de extremo a extremo. `Validación integral de integración continua` es la única comprobación estable para proteger `master`; verifica los resultados y solo acepta pruebas E2E omitidas cuando el clasificador termina correctamente y todos los cambios son Markdown dentro de `docs/`. Si la clasificación falla, está vacía o incluye cualquier otro archivo, se ejecuta la suite completa.
 
-El workflow actual ejecuta `npm test` y Playwright general; no invoca
-`test:ci` ni `test:e2e:pricing`. El harness HTTP de Pricing se ejecuta por separado
-y usa respuestas simuladas, sin Gateway ni PostgreSQL real. Su incorporación
-al CI queda como dependencia de Castilla; este PR no modifica workflows compartidos.
+Playwright conserva `fullyParallel: false` y `retries: 0`. En CI, la suite completa se distribuye en cuatro fragmentos con un trabajador por fragmento; localmente se usan dos trabajadores por defecto. Cada prueba usa su contexto aislado de navegador, los casos dentro de cada archivo se ejecutan en serie y el servidor Vite se comparte. La suite completa permanece obligatoria para cambios funcionales, pruebas, dependencias y configuración. Las pruebas rápidas se ejecutan también por separado para informar sus fallos con prontitud. No se invoca `test:ci` ni `test:e2e:pricing`. El arnés HTTP de Pricing se ejecuta por separado con respuestas simuladas, sin Gateway ni PostgreSQL real.
+
+El flujo [Verificación de despliegues de Vercel](.github/workflows/verificacion-despliegue-vercel.yml) valida la identidad del deployment con la API autenticada, ejecuta un smoke limitado a la SPA mock y publica los contextos `Vercel - g6-productos-ofertas: verificacion-automatizada-production` y `verificacion-despliegue-produccion`. Estos dos contextos aún deben aparecer y configurarse como requeridos en Deployment Checks; el deployment activo consultado no tiene checks registrados. El workflow necesita estar en `master` para recibir `vercel.deployment.ready`. La integración nativa GitHub–Vercel conserva la publicación; no hay un segundo camino. El smoke no acredita Gateway ni integración G7. Que un flujo exista no implica CD protegido ni verificación real de producción.
 
 ## Configuración de datos
 
@@ -185,13 +184,13 @@ VITE_DATA_MODE=mock npm run build
 VITE_DATA_MODE=api npm run build
 ```
 
-El workflow valida ambos builds y revisa en preview rutas seleccionadas; esa revisión no cubre todo el catálogo de módulos ni acredita que todos eviten mocks en modo `api`.
+El flujo valida ambas compilaciones y revisa rutas seleccionadas en la vista previa; esa revisión no cubre todo el catálogo de módulos ni acredita que todos eviten mocks en modo `api`.
 
 Los reportes técnicos y las capturas que corresponden a auditorías concretas están en [`docs/`](docs/). Entre ellos: [auditoría de Pricing](docs/AUDITORIA_MK013.md), [auditoría de Catálogo y variantes](docs/AUDITORIA_CATALOGO_MK003_MK004.md), [validación de auditoría de precios](docs/VALIDACION_MK014.md), [validación de Foundation](docs/VALIDACION_FOUNDATION.md), y [evidencias](docs/evidencias/). Son registros de sus respectivas revisiones; consulta fecha, alcance y commit documentados antes de aplicar sus resultados a otra revisión.
 
 ## Documentación relacionada
 
-Despliegue nativo GitHub → Vercel: [configuración inicial, bootstrap, smoke y operación](docs/DESPLIEGUE_VERCEL.md). El [registro de validación](docs/VALIDACION_VERCEL.md) distingue aprovisionamiento, permisos y comprobaciones pendientes de producción.
+Despliegue nativo GitHub → Vercel: [configuración inicial, preparación, pruebas rápidas y operación](docs/DESPLIEGUE_VERCEL.md). El [registro de validación](docs/VALIDACION_VERCEL.md) distingue aprovisionamiento, permisos y comprobaciones pendientes de producción.
 
 | Tipo | Fuente |
 |---|---|
