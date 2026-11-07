@@ -60,7 +60,7 @@ session?.subscribe(() => {
   if (user && canAdminister(user) && !identity) {
     identity = user.id;
     setMockIdentity(user.id);
-    history.replaceState(null, "", mode === "api" && (!history.state?.usr?.from || history.state.usr.from === "/") ? "/consultas" : loginDestination(history.state?.usr?.from));
+    history.replaceState(null, "", loginDestination(history.state?.usr?.from));
     start();
   }
 });

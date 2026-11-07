@@ -46,7 +46,9 @@ export function ReadOnlyPage() {
   const [busy, setBusy] = useState(false);
   const [updated, setUpdated] = useState("");
   const pending = useRef<AbortController | null>(null);
-  const client = useMemo(() => gateway && session ? createReadOnlyClient(gateway, session) : null, [gateway, session]);
+  // The G7 session gates the UI; Azure's existing academic PUBLIC_READ_ONLY
+  // policy authorizes these GETs. Never downgrade a rejected bearer to anonymous.
+  const client = useMemo(() => gateway && session ? createReadOnlyClient(gateway, session, fetch, { publicReadOnly: true }) : null, [gateway, session]);
   const operations = readOperations.filter(item => item.module === module);
   const operation = readOperations.find(item => item.id === id)!;
   useEffect(() => () => pending.current?.abort(), []);

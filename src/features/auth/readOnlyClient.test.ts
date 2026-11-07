@@ -44,6 +44,21 @@ describe("consultas contractuales de lectura", () => {
     await expect(client.read("listarProductos", {}, signal())).rejects.toThrow("Inicia sesión");
     expect(fetcher).not.toHaveBeenCalled();
   });
+  it("en el modo público existente mantiene la sesión de UI y no adjunta bearer al GET", async () => {
+    const { session, fetcher } = setup();
+    const client = createReadOnlyClient(origin, session, fetcher, { publicReadOnly: true });
+    await client.read("listarProductos", {}, signal());
+    expect(session.getAccessToken).toHaveBeenCalledTimes(1);
+    expect(fetcher.mock.calls[0]?.[1]?.headers).not.toHaveProperty("Authorization");
+  });
+  it("una lectura pública denegada no intenta JWT ni cambia la sesión", async () => {
+    const { session, fetcher } = setup([Response.json({ code: "TOKEN_INVALIDO" }, { status: 401 })]);
+    const client = createReadOnlyClient(origin, session, fetcher, { publicReadOnly: true });
+    await expect(client.read("listarProductos", {}, signal())).rejects.toThrow("no está habilitada");
+    expect(session.refreshAccessToken).not.toHaveBeenCalled();
+    expect(session.invalidateAccessToken).not.toHaveBeenCalled();
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
   it("renueva una sola vez un GET rechazado con TOKEN_INVALIDO", async () => {
     const { session, fetcher, client } = setup([Response.json({ code: "TOKEN_INVALIDO" }, { status: 401 }), Response.json({ total: 1 })]);
     expect(await client.read("listarProductos", {}, signal())).toEqual({ kind: "data", value: { total: 1 } });

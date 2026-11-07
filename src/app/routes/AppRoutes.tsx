@@ -24,7 +24,7 @@ const router = createBrowserRouter([
       {
         element: <ApplicationShell />,
         children: [
-          { path: "/", element: <Navigate to={import.meta.env.VITE_DATA_MODE === "api" ? "/consultas" : "/precios"} replace /> },
+          { path: "/", element: <Navigate to="/precios" replace /> },
           ...productRoutes,
           { path: "/consultas", element: <Suspense fallback={<p role="status">Cargando consultas…</p>}><ReadOnlyPage /></Suspense> },
           ...(import.meta.env.DEV ? demoRoutes : []),

@@ -73,7 +73,7 @@ async function limitedBody(response: Response): Promise<Uint8Array> {
   return result;
 }
 
-export function createReadOnlyClient(origin: string, session: ReadSession, fetcher: typeof fetch = fetch) {
+export function createReadOnlyClient(origin: string, session: ReadSession, fetcher: typeof fetch = fetch, options: { publicReadOnly?: boolean } = {}) {
   const base = secureBase(origin, true);
   return {
     async read(id: string, values: Readonly<Record<string, string>>, cancellation: AbortSignal): Promise<ReadResult> {
@@ -86,10 +86,10 @@ export function createReadOnlyClient(origin: string, session: ReadSession, fetch
       const correlation = crypto.randomUUID();
       const send = (bearer: string) => fetcher(base + path, {
         method: "GET", signal, credentials: "omit", redirect: "error", cache: "no-store",
-        headers: { Accept: "application/json, text/csv, application/pdf, application/octet-stream, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", Authorization: `Bearer ${bearer}`, "X-Correlation-Id": correlation },
+        headers: { Accept: "application/json, text/csv, application/pdf, application/octet-stream, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ...(options.publicReadOnly ? {} : { Authorization: `Bearer ${bearer}` }), "X-Correlation-Id": correlation },
       });
       let response = await send(token);
-      if (await isGatewayTokenInvalid(response)) {
+      if (!options.publicReadOnly && await isGatewayTokenInvalid(response)) {
         const renewed = await session.refreshAccessToken(token, signal);
         if (!renewed) {
           session.invalidateAccessToken(token);
@@ -101,7 +101,7 @@ export function createReadOnlyClient(origin: string, session: ReadSession, fetch
       if (!response.ok) {
         const messages: Record<number, string> = {
           400: "Revisa los filtros e identificadores de la consulta.",
-          401: "Tu sesión no permite completar la consulta. Inicia sesión de nuevo.",
+          401: options.publicReadOnly ? "Esta consulta no está habilitada en el modo de lectura actual del backend." : "Tu sesión no permite completar la consulta. Inicia sesión de nuevo.",
           403: "Tu cuenta no tiene permiso para esta consulta.",
           404: "No se encontró el registro o la consulta aún no está habilitada en el backend.",
         };

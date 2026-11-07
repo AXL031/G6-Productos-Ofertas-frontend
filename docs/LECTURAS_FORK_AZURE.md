@@ -7,9 +7,13 @@ paginación contractual, seguimiento y descargas existentes de los ocho servicio
 La operación interna `obtenerContextoSku` y todas las mutaciones están excluidas.
 No crea importaciones, exportaciones ni datos de prueba.
 
-Se reutilizan el login y la sesión G7 en memoria. Cada consulta envía el bearer
-al Gateway, que conserva sus autorizaciones. Un 403 no renueva la sesión; una
-respuesta TOKEN_INVALIDO admite una sola renovación del GET. No hay fallback
+Se reutilizan el login y la sesión G7 en memoria para entrar a la vista.
+Por instrucción del usuario se conserva el modo académico PUBLIC_READ_ONLY ya
+activo en Azure: estos GET se envían sin bearer, después de comprobar la sesión
+de UI. Esto no cambia permisos del backend ni concede acceso a consultas que
+este rechace. No se reintenta anónimamente una solicitud con bearer rechazado.
+Los transportes administrativos existentes conservan su JWT. El cliente soporta
+también GET autenticado con una sola renovación ante TOKEN_INVALIDO. No hay fallback
 mock ni se inventan campos administrativos a partir de DTO comerciales.
 El resultado se muestra con los campos del servicio, distinguiendo null, cero,
 colección vacía, error y último resultado confirmado. Las colecciones se limitan
