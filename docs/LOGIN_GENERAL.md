@@ -4,6 +4,7 @@
 > Los resultados anteriores de este documento son históricos; no sustituyen la
 > matriz y las validaciones de la auditoría.
 > Segunda revisión sobre `8c5b70e`: [AUDITORIA_LOGIN_PR70_R2.md](AUDITORIA_LOGIN_PR70_R2.md).
+> Cuarta auditoría sobre `d247dd6`: [AUDITORIA_LOGIN_PR70_R4.md](AUDITORIA_LOGIN_PR70_R4.md).
 > Aceptación externa con MFA real: [procedimiento bilateral](ACEPTACION_BILATERAL_G7_MFA.md).
 
 Fecha de revisión: 06/11/2026. Rama de desarrollo: `poma`. Base comprobada antes

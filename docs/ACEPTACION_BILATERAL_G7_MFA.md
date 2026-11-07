@@ -59,14 +59,50 @@ Antes de rellenar correo/contraseña, el verificador:
 - compara `g6-auth-integrations`, publicado desde la configuración que usan los
   transports, con las bases aprobadas de G7 y Gateway;
 - sondea sin credenciales `OPTIONS <G7>/auth/login` y `GET <Gateway>/api/v1/cupones`,
-  sin seguir redirecciones;
+  sin seguir redirecciones. Exige respectivamente 200/204 y 401/403; un 200
+  anónimo del recurso privado, 404, 500 o 503 impide introducir credenciales;
 - limita el tráfico efectivo a documentos/recursos del preview, endpoints G7
-  publicados y lecturas de Gateway. Rechaza redirecciones HTTP también después
+  publicados y al recorrido Gateway: GET de Cupones, solo `pagina=1` y
+  `tamanio=10` sin claves duplicadas/adicionales, y GET sin query de las
+  promociones padre identificadas por esa respuesta autenticada. No admite
+  búsquedas, filtros, otras páginas, descargas ni escrituras comerciales.
+  Rechaza redirecciones HTTP también después
   del login: nunca reenvía un POST a un `Location` por 307/308 y no reintenta peticiones.
 
 Un destino no verificado, un certificado no válido, una redirección o una
 configuración efectiva distinta causa fallo cerrado; **no corregirlo introduciendo
 excepciones generales**. Coordinar la configuración/contrato con el owner.
+
+El gate observa el POST login y su DTO de sesión; si hay desafío, enlaza
+solicitud EMAIL 202 y verificación OTP 200 al mismo desafío. Una rotación debe
+presentar el refresh emitido y mantener la identidad. La lectura protegida debe
+llevar exactamente el Bearer obtenido de esa sesión. Esta comparación se hace
+solo en memoria privada, sin exportar credenciales, DTO, OTP o tokens; no valida
+la firma JWT ni demuestra que Backend la homologue. Tras «Consultar precios»
+exige `/precios`, «Gestión de precios» y su descripción propia; acredita
+navegación, no integración del provider Pricing.
+
+## Logout local y revocación: evidencias distintas
+
+El cierre local es incondicional y no espera a G7. La petición keepalive se
+inicia antes de notificar la limpieza que recarga el realm. El gate exige
+POST logout con el refresh de la sesión observada y respuesta 204; HTTP 500,
+pérdida de respuesta o falta de petición son FAIL de evidencia remota, aunque
+atrás, retorno a una ruta privada y recarga confirmen el cierre local. Un
+historial nuevo puede volver a `about:blank`; se comprueba además el acceso
+directo a `/cupones` y su redirección a login.
+
+El contrato G7 define logout público e idempotente: el 204 también corresponde
+a un refresh inexistente, vencido o ya revocado. Por eso **204 observado no
+acredita revocación efectiva**, ni revocación inmediata de cualquier access JWT.
+En la sesión bilateral, el owner G7 debe confirmar por su mecanismo autorizado
+que el refresh de esa sesión no puede emitir otra sesión después del logout.
+Si se acuerda una prueba de refresh, la realiza una sola vez el operador G7 en
+su entorno seguro, sin copiar tokens al acta, al frontend o a archivos. Gateway
+confirma el comportamiento del access JWT conforme a su política publicada
+(incluida su vigencia), sin inventar una obligación de revocación instantánea.
+Registrar solo resultado, hora y referencia de soporte autorizada. Sin esas
+dos comprobaciones, revocación/homologación permanecen NO EJECUTADAS.
 
 ## Desafío real e intervención del operador
 

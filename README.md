@@ -280,6 +280,11 @@ de `G6_RELEASE_PREVIEW_URL`, `G6_RELEASE_TEST_EMAIL` y `G6_RELEASE_TEST_PASSWORD
 en el entorno de Node (nunca `VITE_*`). Exige HTTPS/origen exacto, comprueba las
 bases efectivas antes de rellenar campos y bloquea redirecciones de documentos y
 peticiones de autenticación. El CLI productivo no admite HTTP ni un flag de fixture.
+Las sondas obligatorias aceptan G7 OPTIONS 200/204 y Gateway GET anónimo 401/403.
+El gate enlaza login/MFA contractual, token de sesión y Bearer de la lectura de
+Cupones. Limita Gateway a la paginación inicial y sus promociones padre; comprueba
+URL y contenido propios de Precios. El logout exige 204 de G7 y cierre local
+tras atrás/recarga; ese 204 idempotente no acredita revocación efectiva.
 
 Sin intervención manual falla si MFA queda pendiente. Para la aceptación real,
 `npm run verify:release:login -- --mfa-manual` abre una ventana donde el operador
