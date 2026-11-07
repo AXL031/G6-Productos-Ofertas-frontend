@@ -65,7 +65,7 @@ No se añadió caché de `node_modules` ni de Chromium: la instalación observad
 
 ## Estado de producción de Vercel
 
-El workflow conserva el contexto `verificacion-despliegue-produccion` y el despliegue nativo de la integración GitHub–Vercel. El publicador externo basado en `repository-dispatch/actions/status@v1` se sustituyó por llamadas explícitas a la API oficial de estados de GitHub, con permiso `statuses:write` limitado a los trabajos que publican.
+El workflow conserva el contexto final `verificacion-despliegue-produccion` y el despliegue nativo de la integración GitHub–Vercel. También usa la acción oficial `vercel/repository-dispatch/actions/status@v1` con el estado `Vercel - g6-productos-ofertas: verificacion-automatizada`, requerido para que Vercel importe la comprobación del evento `repository_dispatch`. Ambos estados deben configurarse como requeridos; el primero conserva el bloqueo fail-closed ante cancelaciones y despliegues obsoletos. El permiso `statuses:write` y `actions:read` queda limitado al trabajo de verificación.
 
 Después de autenticar el proyecto, equipo, repositorio, rama y SHA, se registra `pending`. El resultado pasa a `success` solo si la comprobación remota pasa y el SHA del deployment sigue siendo el HEAD actual de `master`. Una comprobación remota fallida, un SHA obsoleto o una consulta de GitHub fallida dan estado `failure`. Si se cancela o falla la infraestructura antes de publicar el resultado final, el estado previo queda pendiente; no se convierte en éxito. Los runs asociados a SHA diferentes tienen grupos de concurrencia separados para que un deployment obsoleto no bloquee la versión posterior.
 

@@ -157,9 +157,12 @@ Controles de despliegue**, mantener la integración GitHub, la rama de Productio
 
 - La comprobación GitHub Actions `Validación integral de integración continua`
   como requisito del commit de Production, una vez visible y estable.
-- El estado `verificacion-despliegue-produccion`, publicado por la acción
-  oficial `vercel/repository-dispatch/actions/status@v1`, con descripción
-  `Verificación de despliegue en producción`.
+- El estado oficial `Vercel - g6-productos-ofertas: verificacion-automatizada`,
+  publicado por `vercel/repository-dispatch/actions/status@v1`.
+- El estado final `verificacion-despliegue-produccion`, publicado después del
+  smoke y de comprobar que el SHA sigue vigente. Requerir ambos: el estado
+  oficial aparece en Vercel y el final propio mantiene el fallo cerrado ante
+  cancelaciones o despliegues obsoletos.
 - Los controles nativos de estilo y tipos, si el proyecto los ofrece. Vercel
   puede mostrarlos como `Lint` y `Typecheck`; los comandos `lint` y `typecheck`
   se conservan en la CI.
@@ -197,11 +200,14 @@ obsoletos y URLs que no pertenezcan al host inmutable esperado.
 HTTP 200, navegación directa y recarga, contenido esencial, carga y MIME de JS/CSS,
 errores de consola/JavaScript y solicitudes fallidas o a otros orígenes. Production
 continúa en modo `mock`; esta evidencia no acredita conexión HTTP con Backend.
-`Registrar resultado de verificación` usa el estado oficial de Vercel para el SHA
-validado. Solo completa como éxito si la prueba rápida pasó. Si falla la identidad,
-se omite la publicación de estado y el despliegue queda bloqueado; si falla o se
-cancela la prueba, no se publica éxito. Vercel asigna el alias al aprobar todos
-los controles.
+La acción oficial `vercel/repository-dispatch/actions/status@v1` publica el estado
+`Vercel - g6-productos-ofertas: verificacion-automatizada` asociado al SHA del
+evento. El publicador `registrar-estado-vercel.mjs` conserva el contexto final
+`verificacion-despliegue-produccion`: publica `pending` tras validar la identidad
+y solo marca éxito si el smoke pasó, la consulta de `master` respondió y el SHA
+del deployment sigue vigente. Si falla la identidad no se publica un estado
+final; el control oficial falla y Vercel no promueve. Requerir ambos estados.
+Vercel asigna el alias al aprobar todos los controles.
 
 La verificación del dominio público después de la promoción y su trazabilidad
 `SHA → despliegue → alias → prueba rápida` son comprobaciones operativas posteriores; no

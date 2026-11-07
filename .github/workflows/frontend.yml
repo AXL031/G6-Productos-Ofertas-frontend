@@ -50,8 +50,8 @@ jobs:
         run: npm ci
       - name: Analizar estilo del código
         run: npm run lint
-      - name: Probar decisiones del estado de despliegue
-        run: node --test scripts/registrar-estado-vercel.test.mjs
+      - name: Probar vigencia del despliegue de producción
+        run: node --test scripts/verificar-vigencia-vercel.test.mjs scripts/registrar-estado-vercel.test.mjs
       - name: Probar clasificación segura de cambios
         run: node --test scripts/clasificar-cambios-ci.test.mjs
       - name: Probar cobertura completa de fragmentos E2E
