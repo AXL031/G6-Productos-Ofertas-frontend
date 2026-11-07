@@ -1,5 +1,19 @@
 # Evidencia de CI/CD — Hito 4
 
+## Estado actual de auditoría H63 — 2026-11-07
+
+- PR [#63](https://github.com/Taller-SW-Web/G6-Productos-Ofertas-frontend/pull/63) está abierta, lista para revisión y aún sin merge. HEAD al iniciar esta auditoría: `365da5e0d33d5208d0830cac7e004ba8067b0cf1`.
+- Último CI integral completo disponible al iniciar la auditoría: [run 42335663024](https://github.com/Taller-SW-Web/G6-Productos-Ofertas-frontend/actions/runs/42335663024), `success` sobre ese HEAD. No evalúa los cambios H63 que se están preparando; se añadirá el run de esas correcciones al completar la validación.
+- Producción sigue en el deployment `dpl_8wKLFp3QQAFYAirFsxcqFc1a8Ln9`, `READY`, rama `master`, SHA `4d1b85969816f2879a6f6f17b3553cccba0ab764`. La configuración Vercel registra `autoAssignCustomDomains: true` y el deployment lista el dominio de Production junto con los aliases Git de `master`.
+- La API autenticada de Vercel devolvió `checks: []` para ese deployment. La lectura del proyecto no expone la selección persistente en Settings. El owner observó en el dashboard “No configured checks found”; no hay evidencia de checks requeridos activos, por lo que **CD protegido queda pendiente**.
+- El workflow `vercel.deployment.ready` está solo en el HEAD de la PR; Vercel/GitHub ejecutan `repository_dispatch` solo si el workflow ya existe en `master`. El primer merge autorizado puede crear un deployment nativo que se promueva antes de configurar checks. Esa primera ejecución no probaría el bloqueo; se requiere un deployment posterior a seleccionar los dos estados.
+- Nombres exactos publicados por el código tras la corrección: `Vercel - g6-productos-ofertas: verificacion-automatizada-production` y `verificacion-despliegue-produccion`. No están aún disponibles para importar porque este workflow no ha ejecutado un evento real desde `master`.
+- Smoke cubre SPA y recursos en modo `mock`; no acredita Gateway ni autenticación/integración G7. Un E2E Gateway requeriría un entorno y credenciales reales aprobados y queda fuera de esta comprobación.
+
+La configuración de selección y obligatoriedad de Deployment Checks no se expone en las lecturas de API disponibles. El evento real desde `master` y un deployment posterior con el bloqueo aplicado siguen pendientes; no se declara CD operativo ni se ha hecho merge o modificado Production.
+
+## Evidencia histórica previa a H63
+
 **Fecha de evaluación:** 2026-11-02
 
 **Rama:** `ci/atomizar-validaciones-y-verificar-despliegue-vercel`
@@ -12,7 +26,7 @@
 
 **Último run completo medido:** [41415037004](https://github.com/Taller-SW-Web/G6-Productos-Ofertas-frontend/actions/runs/41415037004), éxito, 10:08 de duración total
 
-**Estado de Vercel:** control implementado y probado mediante pruebas unitarias; validación del estado remoto y de Production pendiente de credenciales y deployment real.
+**Estado registrado entonces:** control implementado y probado mediante pruebas unitarias; validación del estado remoto y de Production pendiente de credenciales y deployment real.
 
 Esta evidencia distingue la línea base histórica, la medición de cuatro fragmentos automáticos y la ejecución completa de los nuevos manifiestos ponderados.
 

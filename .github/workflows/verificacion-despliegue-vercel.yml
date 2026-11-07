@@ -26,10 +26,12 @@ jobs:
       contents: read
       statuses: write
     steps:
+      # El estado oficial acompaña al commit que originó repository_dispatch.
+      # El contexto propio adicional bloquea cancelaciones y fallas de publicación.
       - name: Publicar control de GitHub para Vercel
-        uses: vercel/repository-dispatch/actions/status@v1
+        uses: vercel/repository-dispatch/actions/status@30f760c6640485cd92f8c785ef361382555fb712 # v1
         with:
-          name: "Vercel - g6-productos-ofertas: verificacion-automatizada"
+          name: "Vercel - g6-productos-ofertas: verificacion-automatizada-production"
       - name: Obtener código confiable de la rama principal
         uses: actions/checkout@v7.0.1
         with:

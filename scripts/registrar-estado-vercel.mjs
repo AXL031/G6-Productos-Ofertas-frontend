@@ -29,20 +29,19 @@ export function determinarEstadoFinal({ resultadoComprobacion, shaDespliegue, sh
   };
 }
 
-function exigirVariable(nombre) {
-  const valor = process.env[nombre];
+function exigirVariable(nombre, valor = process.env[nombre]) {
   assert.ok(valor, `Falta la variable requerida ${nombre}.`);
   return valor;
 }
 
-async function consultarShaMaster({ token, repositorio }) {
-  const response = await fetch(`https://api.github.com/repos/${repositorio}/commits/master`, {
+async function consultarShaMaster({ token, repositorio, fetchImpl, timeoutMs, signalFactory }) {
+  const response = await fetchImpl(`https://api.github.com/repos/${repositorio}/commits/master`, {
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: "application/vnd.github+json",
       "X-GitHub-Api-Version": "2022-11-28",
     },
-    signal: AbortSignal.timeout(15_000),
+    signal: signalFactory(timeoutMs),
   });
   if (!response.ok) throw new Error(`La consulta de master respondió HTTP ${response.status}.`);
   const body = await response.json();
@@ -50,8 +49,8 @@ async function consultarShaMaster({ token, repositorio }) {
   return body.sha;
 }
 
-async function publicarEstado({ token, repositorio, sha, estado, descripcion, runUrl }) {
-  const response = await fetch(`https://api.github.com/repos/${repositorio}/statuses/${sha}`, {
+async function publicarEstado({ token, repositorio, sha, estado, descripcion, runUrl, fetchImpl, timeoutMs, signalFactory }) {
+  const response = await fetchImpl(`https://api.github.com/repos/${repositorio}/statuses/${sha}`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -65,22 +64,31 @@ async function publicarEstado({ token, repositorio, sha, estado, descripcion, ru
       description: descripcion,
       target_url: runUrl,
     }),
-    signal: AbortSignal.timeout(15_000),
+    signal: signalFactory(timeoutMs),
   });
   if (!response.ok) throw new Error(`GitHub no aceptó el estado final (HTTP ${response.status}).`);
   console.log(`Estado ${estado} registrado para el SHA ${sha} en ${CONTEXTO_ESTADO}.`);
 }
 
-async function main() {
-  const fase = exigirVariable("FASE_ESTADO");
+export async function registrarEstado({
+  fase,
+  token,
+  repositorio,
+  sha,
+  resultadoComprobacion,
+  runUrl,
+  fetchImpl = globalThis.fetch,
+  timeoutMs = 15_000,
+  signalFactory = (ms) => AbortSignal.timeout(ms),
+}) {
   assert.ok(fase === "pendiente" || fase === "final", "FASE_ESTADO debe ser pendiente o final.");
-  const token = exigirVariable("GITHUB_TOKEN");
-  const repositorio = exigirVariable("GITHUB_REPOSITORY");
-  const sha = exigirVariable("DEPLOYMENT_SHA");
+  exigirVariable("GITHUB_TOKEN", token);
+  exigirVariable("GITHUB_REPOSITORY", repositorio);
+  exigirVariable("DEPLOYMENT_SHA", sha);
   assert.match(repositorio, /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/, "GITHUB_REPOSITORY no tiene un formato válido.");
   assert.match(sha, /^[a-f0-9]{40}$/, "DEPLOYMENT_SHA debe contener el SHA completo.");
-
-  const runUrl = `${exigirVariable("GITHUB_SERVER_URL")}/${repositorio}/actions/runs/${exigirVariable("GITHUB_RUN_ID")}`;
+  exigirVariable("GITHUB_RUN_URL", runUrl);
+  assert.equal(typeof fetchImpl, "function", "No está disponible fetch para publicar estados.");
   let resultado;
   if (fase === "pendiente") {
     resultado = { estado: "pending", descripcion: "Identidad validada; comprobación de producción en curso." };
@@ -88,12 +96,12 @@ async function main() {
     let shaMaster;
     let errorConsultaMaster = false;
     try {
-      shaMaster = await consultarShaMaster({ token, repositorio });
+      shaMaster = await consultarShaMaster({ token, repositorio, fetchImpl, timeoutMs, signalFactory });
     } catch {
       errorConsultaMaster = true;
     }
     resultado = determinarEstadoFinal({
-      resultadoComprobacion: process.env.RESULTADO_COMPROBACION,
+      resultadoComprobacion,
       shaDespliegue: sha,
       shaMaster,
       errorConsultaMaster,
@@ -105,6 +113,29 @@ async function main() {
     repositorio,
     sha,
     ...resultado,
+    runUrl,
+    fetchImpl,
+    timeoutMs,
+    signalFactory,
+  });
+  return resultado;
+}
+
+async function main(env = process.env) {
+  const fase = exigirVariable("FASE_ESTADO", env.FASE_ESTADO);
+  const token = exigirVariable("GITHUB_TOKEN", env.GITHUB_TOKEN);
+  const repositorio = exigirVariable("GITHUB_REPOSITORY", env.GITHUB_REPOSITORY);
+  const sha = exigirVariable("DEPLOYMENT_SHA", env.DEPLOYMENT_SHA);
+  const serverUrl = exigirVariable("GITHUB_SERVER_URL", env.GITHUB_SERVER_URL);
+  const runId = exigirVariable("GITHUB_RUN_ID", env.GITHUB_RUN_ID);
+  const runUrl = `${serverUrl}/${repositorio}/actions/runs/${runId}`;
+
+  await registrarEstado({
+    fase,
+    token,
+    repositorio,
+    sha,
+    resultadoComprobacion: env.RESULTADO_COMPROBACION,
     runUrl,
   });
 }

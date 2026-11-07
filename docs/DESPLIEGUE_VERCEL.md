@@ -139,10 +139,11 @@ automatizadas). El flujo entrega cada secreto únicamente al trabajo que lo usa.
 Crear las variables no secretas `VERCEL_PROJECT_ID=prj_RkhYGt0vM0nKW9jMY8LVMnAxCa8W`
 y `VERCEL_TEAM_ID=team_Zkgo8VHqbwLeNfQC4pvTAAmp`, consultadas desde la conexión
 Vercel disponible para el proyecto/equipo actual. No copiar tokens en el
-repositorio ni en registros. El trabajo usa el bypass solo en el
-host inmutable validado, mediante encabezados HTTP; no lo incorpora a URLs,
-registros, trazas ni artefactos. La cookie se limita a ese host y las
-redirecciones a otros orígenes se bloquean.
+repositorio ni en registros. El smoke usa Protection Bypass for Automation
+únicamente en un intercambio HTTPS inicial hacia el host inmutable autenticado.
+Acepta la cookie segura `_vercel_jwt` limitada a ese host; el secreto no se
+vuelve a adjuntar a cada solicitud, no se incluye en URLs/registros/trazas/
+artefactos y las redirecciones de autenticación o a otros orígenes fallan.
 
 El proyecto consultado en Vercel tiene SSO activo para despliegues que no usan
 dominio personalizado. La prueba de lectura del despliegue y del equipo desde
@@ -151,14 +152,26 @@ completa de los metadatos ni del acceso del token de GitHub Actions.
 
 ### Vercel: habilitar los controles de despliegue
 
-En **Proyecto `g6-productos-ofertas` → Configuración → Entornos → Production →
-Controles de despliegue**, mantener la integración GitHub, la rama de Production
-`master` y la asignación automática de alias. Agregar:
+La lectura del deployment de Production más reciente (`dpl_8wKLFp3QQAFYAirFsxcqFc1a8Ln9`)
+devolvió `READY`, rama `master`, SHA `4d1b85969816f2879a6f6f17b3553cccba0ab764`; el proyecto tiene
+`autoAssignCustomDomains: true` y ese deployment lista el dominio de Production y los
+aliases Git de `master`;
+`GET /v1/deployments/{id}/checks` devolvió `checks: []`. La API de proyecto y
+`vercel project inspect` no exponen el selector persistente de Deployment Checks.
+No se verificó en el dashboard qué checks están seleccionados ni cuáles son
+obligatorios; la observación reportada en la interfaz fue “No configured checks
+found”. Por eso CD protegido permanece **PENDIENTE**, no operativo.
+
+En **Proyecto `g6-productos-ofertas` → Settings → Build and Deployment →
+Deployment Checks**, mantener la integración GitHub, la rama de Production
+`master` y la asignación automática de alias. Cuando los estados aparezcan,
+seleccionar como obligatorios:
 
 - La comprobación GitHub Actions `Validación integral de integración continua`
   como requisito del commit de Production, una vez visible y estable.
-- El estado oficial `Vercel - g6-productos-ofertas: verificacion-automatizada`,
-  publicado por `vercel/repository-dispatch/actions/status@v1`.
+- El estado oficial `Vercel - g6-productos-ofertas: verificacion-automatizada-production`,
+  publicado por la acción `vercel/repository-dispatch/actions/status` fijada
+  al commit `30f760c6640485cd92f8c785ef361382555fb712`.
 - El estado final `verificacion-despliegue-produccion`, publicado después del
   smoke y de comprobar que el SHA sigue vigente. Requerir ambos: el estado
   oficial aparece en Vercel y el final propio mantiene el fallo cerrado ante
@@ -167,17 +180,39 @@ Controles de despliegue**, mantener la integración GitHub, la rama de Productio
   puede mostrarlos como `Lint` y `Typecheck`; los comandos `lint` y `typecheck`
   se conservan en la CI.
 
-No se pudo confirmar desde la conexión de solo lectura si el plan/proyecto tiene
-Deployment Checks (controles de despliegue) habilitados. La API consultada devolvió
-el proyecto y su despliegue actual, pero no expuso el plan ni los controles; la lectura detallada
-falló con `403`. El responsable debe comprobarlo en el panel antes de declarar
-que la barrera bloquea la publicación. Si el control no está disponible, queda
-bloqueada la promoción automatizada verificada; no se presentará la prueba rápida
-posterior al despliegue como sustituto. Una alternativa distinta sería cambiar
-la publicación nativa por una preparación con `vercel deploy --prebuilt
---skip-domain`, verificar la URL inmutable y asignar el dominio con `vercel
-promote` después del éxito. No está implementada ni autorizada: requiere
-aprobación explícita porque sustituye el comportamiento automático de Git.
+Los checks todavía no se pueden seleccionar desde GitHub porque ninguno ha sido
+publicado para este workflow. `repository_dispatch` solo inicia un workflow cuyo
+archivo ya está presente en la rama predeterminada `master`; hoy el archivo está
+solo en esta PR. El primer merge autorizado permite que Vercel envíe
+`vercel.deployment.ready` y que GitHub ejecute el workflow de `master`. Como los
+checks aún no están seleccionados, ese primer deployment nativo **podría
+promoverse automáticamente**. No se debe presentar esa ejecución inicial como
+CD protegido ni fusionar sin autorización para el cambio de producción.
+
+Procedimiento de activación cuando el owner autorice la primera integración:
+
+1. Aceptar que el merge publicará mediante la integración Git nativa; revisar y
+   aprobar el cambio de producción por separado. No usar `Force Promote`.
+2. Confirmar que `vercel.deployment.ready` aparece en Actions y que el workflow
+   ejecutado desde `master` termina `success` para la identidad, smoke y SHA.
+3. En Deployment Checks, añadir los dos contextos anteriores y guardarlos como
+   obligatorios; confirmar en el proyecto que ambos figuran seleccionados.
+4. Esperar a un siguiente deployment nativo de Production y comprobar que
+   permanece sin asignación de alias mientras los checks están pendientes.
+5. Verificar que pasa solo después de ambos estados `success` y que un fallo o
+   cancelación conserva el alias anterior. Registrar deployment, SHA, checks y
+   alias antes de declarar el control operativo.
+
+El primer deployment no demuestra el bloqueo porque puede promoverse antes de
+seleccionar los checks; se necesita comprobar un deployment posterior al paso 3.
+No se implementa una vía adicional con `vercel deploy --prebuilt`/`promote`.
+
+El workflow exige dos contextos. La acción oficial de Vercel publica el suyo
+para asociar el evento con el SHA; su acción post puede mapear un job cancelado
+sin pasos fallidos a `success` y solo advierte si GitHub rechaza su escritura.
+El contexto propio falla ante cancelación/SHA obsoleto y una falla al publicar
+deja el estado pendiente y el job fallido, evitando convertir esos casos en
+éxito efectivo cuando ambos contextos estén requeridos.
 
 No usar **Force Promote** como procedimiento ordinario. Confirmar en Vercel que
 un despliegue rechazado continúa sin el alias de Production y que la versión
@@ -197,11 +232,14 @@ obsoletos y URLs que no pertenezcan al host inmutable esperado.
 
 `Comprobar funcionamiento del despliegue` ejecuta la
 [`prueba rápida`](../scripts/vercel-smoke.mjs) contra esa URL: cinco rutas,
-HTTP 200, navegación directa y recarga, contenido esencial, carga y MIME de JS/CSS,
-errores de consola/JavaScript y solicitudes fallidas o a otros orígenes. Production
-continúa en modo `mock`; esta evidencia no acredita conexión HTTP con Backend.
-La acción oficial `vercel/repository-dispatch/actions/status@v1` publica el estado
-`Vercel - g6-productos-ofertas: verificacion-automatizada` asociado al SHA del
+HTTP 200, navegación directa y recarga, contenido esencial, respuestas y MIME
+de recursos, errores de aplicación, consola/JavaScript, red y redirects a
+autenticación. El smoke verifica únicamente la SPA servida en Production, que
+conserva el modo `mock`; **no** prueba Gateway, identidad G7, credenciales,
+contratos ni persistencia de backend. Un E2E real con Gateway exige una suite,
+entorno y credenciales aprobados específicamente; no se mezcla con este smoke.
+La acción oficial fijada publica el estado
+`Vercel - g6-productos-ofertas: verificacion-automatizada-production` asociado al SHA del
 evento. El publicador `registrar-estado-vercel.mjs` conserva el contexto final
 `verificacion-despliegue-produccion`: publica `pending` tras validar la identidad
 y solo marca éxito si el smoke pasó, la consulta de `master` respondió y el SHA
