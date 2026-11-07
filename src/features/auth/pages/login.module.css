@@ -51,6 +51,32 @@
 .intro { color: var(--po-secondary); margin-top: 8px; margin-bottom: 32px; }
 .copyright { margin-top: 56px; color: var(--po-secondary); font-size: 12px; line-height: 16px; text-align: center; }
 .fields { gap: 24px; }
+.secondaryButton { color: var(--po-primaryHover); }
+.secondaryButton[data-variant="outline"] { border-color: var(--po-primaryHover); }
+.fields .secondaryButton[data-variant]:not(:disabled):not([data-disabled]):hover { color: var(--po-ink); }
+.card, .formPanel, .brandBar > * { min-width: 0; }
+.brandTitle, .card h1 { overflow-wrap: anywhere; }
+
+@media (max-width: 1024px) {
+  .brandBar { gap: 16px; left: 24px; right: 24px; }
+  .brandCopy { left: 24px; right: 24px; }
+  .brandTitle { font-size: 32px; }
+  .card { padding: 24px; }
+  .formPanel { padding-inline: 24px; }
+}
+
+@media (max-width: 767px) {
+  .screen { grid-template-columns: minmax(0, 1fr); }
+  .brandPanel { min-height: 96px; }
+  .brandBar { position: relative; inset: auto; padding: 16px; gap: 16px; }
+  .brandBar img { width: 52px; height: 40px; flex-shrink: 0; }
+  .brandBar p { font-size: 12px; }
+  .stripe, .brandCopy, .watermark { display: none; }
+  .formPanel { min-height: calc(100svh - 96px); padding: 16px; }
+  .card { padding: 16px; }
+  .card h1 { font-size: 28px; }
+  .copyright { margin-top: 16px; }
+}
 
 /* Desktop windows can have less vertical space without changing the two panels. */
 @media (max-height: 800px) {

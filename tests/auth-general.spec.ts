@@ -11,6 +11,8 @@ let base: string;
 let mfa: boolean;
 let failure: string;
 let expiry: number;
+let roles: string[];
+let demo: boolean;
 let calls: { path: string; body: Record<string, unknown> }[];
 const dto = {
   accessToken: "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJpc29sYXRlZCJ9.signature",
@@ -18,7 +20,7 @@ const dto = {
   usuario: { id: "11111111-1111-4111-8111-111111111111", nombreCompleto: "Gestora de prueba", correo: "isolated@example.test", roles: ["GESTOR_COMERCIAL"] },
 };
 test.beforeEach(async ({ page }) => {
-  mfa = false; failure = ""; expiry = 900; calls = [];
+  mfa = false; failure = ""; expiry = 900; calls = []; roles = ["GESTOR_COMERCIAL"]; demo = false;
   provider = createServer(async (req, res) => {
     res.setHeader("Access-Control-Allow-Origin", `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? 5173}`);
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -34,7 +36,7 @@ test.beforeEach(async ({ page }) => {
     if (failure) { res.writeHead(failure === "UNAVAILABLE" ? 503 : failure === "OTP_EXPIRADO" ? 410 : 401).end(JSON.stringify({ code: failure, detail: "SENSITIVE_DETAIL" })); return; }
     if (path.endsWith("/login") && mfa) { res.end(JSON.stringify({ mfaRequerido: true, challengeToken: "isolated-challenge", expiraEn: 300 })); return; }
     if (path.endsWith("/solicitar")) { res.writeHead(202).end("{}"); return; }
-    res.end(JSON.stringify({ ...dto, expiresIn: expiry, ...(path.endsWith("/refresh") ? { refreshToken: `isolated-rotation-${calls.length}` } : {}) }));
+    res.end(JSON.stringify({ ...dto, usuario: { ...dto.usuario, roles }, expiresIn: expiry, ...(path.endsWith("/refresh") ? { refreshToken: `isolated-rotation-${calls.length}` } : {}) }));
   });
   provider.listen(0, "127.0.0.1");
   await once(provider, "listening");
@@ -44,7 +46,7 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/src/main.tsx*", async route => {
     const response = await route.fetch();
     let body = await response.text();
-    for (const [key, value] of [["VITE_DATA_MODE", "api"], ["VITE_GATEWAY_ORIGIN", `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? 5173}`], ["VITE_G7_API_BASE", base]]) {
+    for (const [key, value] of [["VITE_G6_READ_DEMO", demo ? "true" : "false"], ["VITE_DATA_MODE", "api"], ["VITE_GATEWAY_ORIGIN", `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? 5173}`], ["VITE_G7_API_BASE", base]]) {
       body = body.replaceAll(`import.meta.env.${key}`, JSON.stringify(value));
     }
     await route.fulfill({ response, body });
@@ -59,6 +61,52 @@ async function login(page: Page) {
   await page.getByRole("textbox", { name: "Contraseña", exact: true }).fill("isolated-password");
   await page.getByRole("button", { name: "Ingresar al panel", exact: true }).click();
 }
+
+test("el panel deniega roles ajenos y reevalúa el rol al renovar", async ({ page }) => {
+  roles = ["ADMIN_SISTEMA"];
+  await page.goto("/productos");
+  await login(page);
+  await expect(page.getByRole("heading", { name: "Acceso denegado" })).toBeVisible();
+  await expect(page.getByRole("navigation")).toHaveCount(0);
+  await page.getByRole("button", { name: "Cerrar sesión" }).click();
+  roles = ["GESTOR_COMERCIAL"];
+  expiry = 2;
+  await login(page);
+  await expect(page.getByRole("navigation", { name: "Navegación de la aplicación" })).toBeVisible();
+  roles = ["CLIENTE"];
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole("navigation")).toHaveCount(0);
+});
+
+test("login y MFA permiten usar todos los controles en anchos pequeños y zoom equivalente a 200%", async ({ page }) => {
+  test.setTimeout(120000);
+  mfa = true;
+  // 720 × 450 equivale al área CSS de una ventana 1440 × 900 con zoom 200%.
+  for (const [width, height] of [[320, 568], [375, 667], [768, 600], [1024, 600], [1366, 600], [1440, 600], [720, 450], [320, 320]]) {
+    await page.setViewportSize({ width: width!, height: height! });
+    await page.goto("/login");
+    await expect(page.getByRole("heading", { name: "Iniciar sesión", exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await login(page);
+    await expect(page.getByRole("heading", { name: "Verificar identidad" })).toBeVisible();
+    for (const control of await page.locator("input, button").all()) {
+      await control.scrollIntoViewIfNeeded();
+      const box = await control.boundingBox();
+      expect(box!.x).toBeGreaterThanOrEqual(0);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(width!);
+      expect(box!.y).toBeGreaterThanOrEqual(0);
+      expect(box!.y + box!.height).toBeLessThanOrEqual(height!);
+    }
+    await page.getByRole("button", { name: "Enviar código al correo" }).click();
+    await expect(page.getByRole("status")).toContainText("Enviamos el código");
+    await page.mouse.move(0, 0);
+    expect(await page.getByRole("button", { name: "Enviar código al correo" }).evaluate(element => getComputedStyle(element).color)).toBe("rgb(194, 65, 12)");
+    await page.getByRole("button", { name: "Enviar código al correo" }).hover();
+    expect(await page.getByRole("button", { name: "Enviar código al correo" }).evaluate(element => getComputedStyle(element).color)).toBe("rgb(27, 24, 18)");
+    await page.mouse.move(0, 0);
+    await page.screenshot({ path: test.info().outputPath(`mfa-responsive-${width}x${height}.png`), fullPage: true });
+  }
+});
 async function expectLoginInsideViewport(page: Page) {
   await page.evaluate(() => document.fonts.ready);
   expect(await page.evaluate(() => ({
@@ -102,7 +150,7 @@ test("login y error de credenciales caben en ventanas desktop de menor altura", 
     await page.screenshot({ path: test.info().outputPath(`login-inicial-${width}x${height}.png`) });
     failure = "CREDENCIALES_INVALIDAS";
     await login(page);
-    await expect(page.getByRole("status")).toContainText("El correo o la contraseña no son correctos");
+    await expect(page.getByRole("alert")).toContainText("El correo o la contraseña no son correctos");
     await expectLoginInsideViewport(page);
     await page.screenshot({ path: test.info().outputPath(`login-${width}x${height}.png`) });
   }
@@ -120,12 +168,13 @@ test("MFA y código vencido caben completos en ventanas desktop de menor altura"
     failure = "OTP_EXPIRADO";
     await page.getByLabel("Código de verificación").fill("123456");
     await page.getByRole("button", { name: "Verificar código", exact: true }).click();
-    await expect(page.getByRole("status")).toContainText("El código venció");
+    await expect(page.getByRole("alert")).toContainText("El código venció");
     await expectLoginInsideViewport(page);
     await page.screenshot({ path: test.info().outputPath(`mfa-1440x${height}.png`) });
   }
 });
 test("la demo pública aprobada mantiene lectura aislada y no abre administración", async ({ page }) => {
+  demo = true;
   await page.route("**/src/app/routes/AppRoutes.tsx*", async route => {
     const response = await route.fetch();
     const body = (await response.text()).replaceAll("import.meta.env.VITE_G6_READ_DEMO", '"true"');
@@ -189,11 +238,11 @@ test("validaciones requeridas, ojo, teclado y captura 1440", async ({ page }) =>
   await expect(page.getByRole("textbox", { name: "Contraseña", exact: true })).toHaveAttribute("type", "password");
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(1440);
   await page.getByRole("heading", { level: 1 }).click();
-  await page.screenshot({ path: "docs/evidencias/login-general-1440.png", fullPage: true });
+  await page.screenshot({ path: test.info().outputPath("login-general-1440.png"), fullPage: true });
   const mockup = resolve("MK-LOGIN/index.html");
   if (existsSync(mockup)) {
     await page.goto(pathToFileURL(mockup).href);
-    await page.screenshot({ path: "docs/evidencias/login-referencia-1440.png", fullPage: true });
+    await page.screenshot({ path: test.info().outputPath("login-referencia-1440.png"), fullPage: true });
   }
 });
 test("renovación y expiración sin actividad retiran el contenido administrativo", async ({ page }) => {
@@ -205,17 +254,18 @@ test("renovación y expiración sin actividad retiran el contenido administrativ
   failure = "REFRESCO_INVALIDO";
   await expect(page).toHaveURL(/\/login$/);
   await expect(page.getByRole("navigation")).toHaveCount(0);
-  await expect(page.getByRole("status")).toContainText("Tu sesión terminó");
+  await expect(page.getByRole("alert")).toContainText("Tu sesión terminó");
 });
 test("credenciales incorrectas y servicio indisponible conservan acceso bloqueado", async ({ page }) => {
   await page.goto("/login");
   failure = "CREDENCIALES_INVALIDAS";
   await login(page);
-  await expect(page.getByRole("status")).toContainText("El correo o la contraseña no son correctos");
+  await expect(page.getByRole("alert")).toContainText("El correo o la contraseña no son correctos");
+  await expect(page.getByRole("alert").locator("..")).toBeFocused();
   await expect(page.getByText("SENSITIVE_DETAIL")).toHaveCount(0);
   failure = "UNAVAILABLE";
   await login(page);
-  await expect(page.getByRole("status")).toContainText("No pudimos conectar con Seguridad");
+  await expect(page.getByRole("alert")).toContainText("No pudimos conectar con Seguridad");
   await expect(page.getByRole("navigation")).toHaveCount(0);
 });
 test("MFA pendiente, código inválido/vencido y confirmación con la misma sesión", async ({ page }) => {
@@ -230,13 +280,13 @@ test("MFA pendiente, código inválido/vencido y confirmación con la misma sesi
     failure = code!;
     await page.getByLabel("Código de verificación").fill("000000");
     await page.getByRole("button", { name: "Verificar código" }).click();
-    await expect(page.getByRole("status")).toContainText(message!);
+    await expect(page.getByRole("alert")).toContainText(message!);
     await expect(page.getByRole("navigation")).toHaveCount(0);
   }
   failure = "TOKEN_INVALIDO";
   await page.getByLabel("Código de verificación").fill("000000");
   await page.getByRole("button", { name: "Verificar código" }).click();
-  await expect(page.getByRole("status")).toContainText("El desafío terminó");
+  await expect(page.getByRole("alert")).toContainText("El desafío terminó");
   failure = "";
   await login(page);
   await page.getByLabel("Código de verificación").fill("123456");

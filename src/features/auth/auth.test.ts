@@ -5,6 +5,7 @@ import { PromotionSessionContext } from "../../app/config/PromotionSessionContex
 import { createOptionalAuthSession } from "../../app/config/authSessionRuntime";
 import { createPromotionSessionRuntime } from "../promotions/services/promotionSessionRuntime";
 import { createAuthenticatedCatalogTransport } from "../catalog/adapters/authenticatedCatalogTransport";
+import { canAdminister } from "./authorization";
 
 afterEach(() => vi.restoreAllMocks());
 describe("una sola sesión transversal", () => {
@@ -31,6 +32,14 @@ const dto = (version = 1) => ({
   usuario: { id: "11111111-1111-4111-8111-111111111111", nombreCompleto: "Prueba", correo: "test@example.test", roles: ["GESTOR_COMERCIAL"] },
 });
 describe("Catálogo consume la sesión existente sin repetir escrituras", () => {
+  it.each([null, { code: "DESCONOCIDO" }, "respuesta ilegible"])("401 desconocido conserva sesión: %s", async body => {
+    const fetcher = vi.spyOn(globalThis, "fetch").mockImplementation(async input => String(input).endsWith("/auth/login") ? Response.json(dto()) : typeof body === "string" ? new Response(body, { status: 401, headers: { "Content-Type": "text/html" } }) : Response.json(body, { status: 401 }));
+    const session = createOptionalAuthSession("https://g7.example.test")!;
+    await session.login("test@example.test", "password");
+    await createAuthenticatedCatalogTransport("https://gateway.example.test", session).request("/api/v1/productos", { method: "GET", signal: new AbortController().signal, headers: {} });
+    expect(session.snapshot().user).not.toBeNull();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
   it.each(["GET", "POST", "PATCH"] as const)("401 en %s", async method => {
     let reads = 0;
     const fetcher = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
@@ -58,5 +67,16 @@ describe("Catálogo consume la sesión existente sin repetir escrituras", () => 
     expect(response.status).toBe(403);
     expect(session.snapshot().user).not.toBeNull();
     expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("política comercial publicada", () => {
+  it.each([[], ["CLIENTE"], ["ADMIN_SISTEMA"], ["VENDEDOR"]].map(roles => ({ roles })))("deniega roles $roles", ({ roles }) => {
+    expect(canAdminister({ ...dto().usuario, roles })).toBe(false);
+  });
+  it("admite GESTOR_COMERCIAL y reevalúa cambios de rol", () => {
+    expect(canAdminister(dto().usuario)).toBe(true);
+    expect(canAdminister({ ...dto().usuario, roles: ["CLIENTE"] })).toBe(false);
+    expect(canAdminister(null)).toBe(false);
   });
 });

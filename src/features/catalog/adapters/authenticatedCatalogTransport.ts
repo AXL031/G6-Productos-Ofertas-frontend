@@ -10,16 +10,18 @@ export function createAuthenticatedCatalogTransport(origin: string, session: G7S
       if (!token) throw new Error("Inicia sesión para continuar.");
       const send = () => transport.request(path, { ...init, headers: { ...init.headers, Authorization: `Bearer ${token}` } });
       let response = await send();
-      if (response.status === 401 && init.method === "GET") {
+      if (response.status === 401) {
         const problem: unknown = await response.clone().json().catch(() => null);
         if (problem && typeof problem === "object" && "code" in problem && problem.code === "TOKEN_INVALIDO") {
-          token = await session.refreshAccessToken(token, init.signal);
-          if (!token) return response;
-          response = await send();
+          if (init.method === "GET") {
+            token = await session.refreshAccessToken(token, init.signal);
+            if (!token) return response;
+            response = await send();
+          }
+          if (response.status === 401 && token) session.invalidateAccessToken(token);
         }
       }
       // No automatic write replay; a 403 preserves the session and backend denial.
-      if (response.status === 401 && token) session.invalidateAccessToken(token);
       return response;
     },
   };

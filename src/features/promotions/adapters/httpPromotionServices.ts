@@ -35,6 +35,7 @@ export interface PromotionHttpOptions {
   ): Promise<string | null>;
   invalidateAccessToken?(rejectedToken: string): void;
   catalog?: PromotionCatalogRepository;
+  sessionEvents?: { version(): number; subscribe(notify: () => void): () => void };
 }
 class HttpFailure extends Error {
   constructor(readonly status: number) {
@@ -278,7 +279,7 @@ function page<T>(v: unknown, map: (v: unknown) => T) {
 
 export function createHttpPromotionServices(
   options: PromotionHttpOptions,
-): PromotionServices {
+): PromotionServices & { dispose(): void } {
   const url = new URL(options.gatewayOrigin);
   if (
     url.username ||
@@ -300,6 +301,10 @@ export function createHttpPromotionServices(
     method = "GET",
     body?: unknown,
   ): Promise<unknown> {
+    const version = options.sessionEvents?.version();
+    const assertSession = () => {
+      if (version !== options.sessionEvents?.version()) throw new HttpFailure(401);
+    };
     signal.throwIfAborted();
     const bounded = AbortSignal.any([signal, AbortSignal.timeout(7500)]);
     async function sessionToken(work: () => Promise<string | null>) {
@@ -319,6 +324,7 @@ export function createHttpPromotionServices(
       }
     }
     const token = await sessionToken(() => options.getAccessToken(bounded));
+    assertSession();
     bounded.throwIfAborted();
     if (!token || /[\r\n]/.test(token)) throw new HttpFailure(401);
     const send = (accessToken: string) =>
@@ -362,7 +368,9 @@ export function createHttpPromotionServices(
       }
     }
     if (!response.ok) throw new HttpFailure(response.status);
-    return response.json();
+    const result: unknown = await response.json();
+    assertSession();
+    return result;
   }
   async function read<T>(
     work: () => Promise<T>,
@@ -419,6 +427,15 @@ export function createHttpPromotionServices(
   }
   const campaignSnapshots = new Map<string, CampaignDraft>(),
     ruleSnapshots = new Map<string, RecommendationDraft>();
+  let version = options.sessionEvents?.version();
+  const unsubscribe = options.sessionEvents?.subscribe(() => {
+    const current = options.sessionEvents?.version();
+    if (current !== version) {
+      version = current;
+      campaignSnapshots.clear();
+      ruleSnapshots.clear();
+    }
+  });
   function mapCampaign(v: unknown) {
     const r = campaign(v);
     campaignSnapshots.set(r.id, structuredClone(r.configuration));
@@ -696,6 +713,7 @@ export function createHttpPromotionServices(
   };
   const httpCatalog = createHttpPromotionCatalog(request);
   return {
+    dispose: () => { unsubscribe?.(); campaignSnapshots.clear(); ruleSnapshots.clear(); },
     campaigns,
     coupons,
     recommendations,

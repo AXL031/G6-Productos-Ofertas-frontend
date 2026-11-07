@@ -9,8 +9,9 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 const errors = [], requests = [];
 page.on("pageerror", error => errors.push(error.message));
 page.on("request", request => requests.push(request.url()));
-// Production mock fixtures cannot bypass login. Feature interactions remain
-// covered by development E2E/harnesses; this checks the compiled access boundary.
+// Only the anonymous fail-closed boundary. Passing is NOT release readiness.
+// Authenticated operations: npm run test:production:auth (isolated contract).
+// Real candidate configuration: npm run verify:release:login.
 const paths = [
   "/",
   "/precios",
@@ -85,7 +86,7 @@ try {
   assert.equal(requests.some(url => /\/api\/v1\//.test(url)), false, "No private reads before login");
   if (mode === "api") assert.equal(requests.some(url => /mockCatalogRepository|createDemoPricingRuntime|mockInventoryAdapter/.test(url)), false, "No fixture fallback in API");
   assert.deepEqual(errors, []);
-  console.log(`PASS producción ${mode}: ${paths.length} rutas protegidas, 1440 px, cero consultas privadas sin sesión`);
+  console.log(`PASS fallo cerrado ${mode}: ${paths.length} rutas protegidas, 1440 px, cero consultas privadas sin sesión. NO demuestra login operativo ni preparación para liberar.`);
 } finally {
   await browser.close();
 }

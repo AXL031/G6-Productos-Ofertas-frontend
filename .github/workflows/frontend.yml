@@ -100,11 +100,13 @@ jobs:
       - run: npm ci
       - name: Instalar Chromium para verificaciones de preview
         run: npx playwright install --with-deps chromium
+      - name: Probar panel compilado con G7 y Gateway contractuales aislados (no homologación real)
+        run: npm run test:production:auth
       - name: Compilar modo mock
         env:
           VITE_DATA_MODE: mock
         run: npm run build
-      - name: Verificar build y preview mock
+      - name: Verificar fallo cerrado del preview mock (no preparación para liberar)
         env:
           VITE_DATA_MODE: mock
         run: |
@@ -127,7 +129,7 @@ jobs:
         env:
           VITE_DATA_MODE: api
         run: npm run build
-      - name: Verificar build y preview API sin fallback a mocks
+      - name: Verificar fallo cerrado del preview API sin fallback a mocks
         env:
           VITE_DATA_MODE: api
         run: |

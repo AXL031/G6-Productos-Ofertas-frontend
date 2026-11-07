@@ -6,6 +6,8 @@ import { useAuthSession } from "../../../app/config/useAuthSession";
 import { loginDestination } from "../../../app/routes/loginDestination";
 import { LoginForm } from "../components/LoginForm";
 import classes from "./login.module.css";
+import { canAdminister } from "../authorization";
+import { AccessDenied } from "../components/AccessDenied";
 
 export function LoginPage() {
   const { session, view } = useAuthSession();
@@ -17,6 +19,7 @@ export function LoginPage() {
     document.title = "Iniciar sesión | Productos y Ofertas · Inka Athletics";
     return () => { document.title = previous; };
   }, []);
+  if (view.user && !canAdminister(view.user)) return <AccessDenied />;
   if (view.user) return <Navigate to={loginDestination(from)} replace />;
   return (
     <main className={classes.screen}>

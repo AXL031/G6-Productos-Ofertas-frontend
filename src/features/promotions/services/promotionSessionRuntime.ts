@@ -28,6 +28,7 @@ export function createPromotionSessionRuntime(
       getAccessToken: session.getAccessToken,
       refreshAccessToken: session.refreshAccessToken,
       invalidateAccessToken: session.invalidateAccessToken,
+      sessionEvents: { version: session.getSessionVersion, subscribe: session.subscribe },
     }),
   };
 }

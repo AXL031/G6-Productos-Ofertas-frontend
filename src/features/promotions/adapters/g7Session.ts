@@ -12,6 +12,7 @@ export interface SessionView {
   mfa: boolean;
   busy: boolean;
   notice: string;
+  noticeSemantic?: "error" | "info" | "success";
 }
 interface Tokens {
   accessToken: string;
@@ -119,10 +120,15 @@ export class G7Session {
   constructor(
     base: string,
     private readonly clock: () => number = Date.now,
+    initialNotice?: "expired" | "logout",
   ) {
     this.#base = secureBase(base);
+    if (initialNotice) this.#view = { ...this.#view,
+      notice: initialNotice === "expired" ? messages.REFRESCO_INVALIDO : "Cerraste sesión.",
+      noticeSemantic: initialNotice === "expired" ? "error" : "info" };
   }
   snapshot = (): SessionView => this.#view;
+  getSessionVersion = () => this.#generation;
   subscribe = (notify: () => void) => {
     this.#listeners.add(notify);
     return () => {
@@ -133,12 +139,12 @@ export class G7Session {
     this.#view = { ...this.#view, ...change };
     this.#listeners.forEach((notify) => notify());
   }
-  #clear(notice: string) {
+  #clear(notice: string, noticeSemantic: "error" | "info" = "error") {
     this.#generation++;
     this.#tokens = null;
     this.#challenge = null;
     this.#refresh = null;
-    this.#publish({ user: null, mfa: false, busy: false, notice, expiresAt: null });
+    this.#publish({ user: null, mfa: false, busy: false, notice, noticeSemantic, expiresAt: null });
   }
   async #post(path: string, body: unknown, expected = 200): Promise<unknown> {
     const response = await fetch(this.#base + path, {
@@ -147,6 +153,7 @@ export class G7Session {
       credentials: "omit",
       redirect: "error",
       cache: "no-store",
+      keepalive: expected === 204,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
@@ -201,6 +208,7 @@ export class G7Session {
           this.#clear(messages.TOKEN_INVALIDO);
         else
           this.#publish({
+            noticeSemantic: "error",
             notice:
               (error instanceof SessionFailure &&
                 messages[error.code as keyof typeof messages]) ||
@@ -249,6 +257,7 @@ export class G7Session {
       if (dto.expiraEn !== undefined) positive(dto.expiraEn);
       if (dto.desafioExpiraEn !== undefined) positive(dto.desafioExpiraEn);
       this.#publish({
+        noticeSemantic: "success",
         notice: "Enviamos el código a tu correo. Revisa tu bandeja de entrada.",
       });
     });
@@ -274,6 +283,8 @@ export class G7Session {
         const dto = await this.#post("/auth/refresh", { refreshToken: token });
         if (generation !== this.#generation) return null;
         const rotated = object(dto);
+        if (object(rotated.usuario).id !== this.#view.user?.id)
+          throw new SessionFailure("INVALID_RESPONSE");
         if (rotated.refreshToken === token)
           throw new SessionFailure("INVALID_RESPONSE");
         this.#accept(rotated);
@@ -311,7 +322,7 @@ export class G7Session {
   };
   async logout() {
     const token = this.#tokens?.refreshToken;
-    this.#clear("Cerraste sesión.");
+    this.#clear("Cerraste sesión.", "info");
     if (token) {
       try {
         await this.#post("/auth/logout", { refreshToken: token }, 204);

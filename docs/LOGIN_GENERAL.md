@@ -1,5 +1,9 @@
 # Login general — implementación y validación
 
+> Seguimiento de auditoría de PR #70: [AUDITORIA_LOGIN_PR70.md](AUDITORIA_LOGIN_PR70.md).
+> Los resultados anteriores de este documento son históricos; no sustituyen la
+> matriz y las validaciones de la auditoría.
+
 Fecha de revisión: 06/11/2026. Rama de desarrollo: `poma`. Base comprobada antes
 de implementar: `poma = origin/poma = origin/master = 4d1b85969816f2879a6f6f17b3553cccba0ab764`.
 El único cambio preexistente era `.gitignore` (exclusión local `MK-LOGIN/`), que se
@@ -44,14 +48,21 @@ de herramientas del plan Starter. No se declara verificación de Figma.
   el shell montado; no se reinicia la validación por cada location.key.
 - El retorno admite únicamente rutas administrativas registradas; URLs externas,
   rutas desconocidas, login y demo pública vuelven a `/precios`. No se infieren
-  roles ni grants: la autorización de cada operación permanece en sus providers.
+  grants. La entrada al panel exige el rol publicado `GESTOR_COMERCIAL`
+  (Arquitectura §21); cada operación sigue autorizándose en sus providers.
 - El encabezado muestra la identidad recibida y ofrece logout en todos los módulos.
   Logout limpia los tokens y desmonta páginas/hooks privados inmediatamente, incluso
   sin red. Recargar pierde la sesión en memoria. Las respuestas tardías no restauran
-  una sesión cerrada; se conservan las garantías de G7Session.
+  una sesión cerrada; se conservan las garantías de G7Session. El arranque de los
+  proveedores administrativos se difiere hasta autenticar. Al terminar o cambiar
+  la identidad se recarga el contexto JavaScript para descartar caches y ediciones.
+  La persistencia mock y los intentos inciertos de Inventario usan un namespace
+  por identidad; la demo anónima mantiene sus claves originales. No se borran
+  datos de otra identidad ni sus contratos de sincronización.
 - Catálogo administrativo inyecta un transporte autenticado en sus adapters
   existentes. Comparte refresh; reintenta un GET una vez ante `TOKEN_INVALIDO`,
-  invalida tras otro 401 y no repite POST/PATCH. 403 conserva la sesión y el error.
+  invalida tras otro 401 y no repite POST/PATCH. Un 401 inicial desconocido o
+  ilegible y un 403 conservan la sesión y el error.
   Taxonomía, Bulk y Promotions conservan sus mecanismos y usan la misma instancia.
 - No se altera el transporte de `/demo/g6/*`: lectura aislada bajo sus flags
   existentes, sin acceso indirecto al árbol administrativo.
@@ -142,7 +153,8 @@ prueba; no existe login exitoso simulado en el código productivo.
 - Pricing, Inventario, Combos y otros providers pendientes mantienen sus límites
   actuales: autenticar la plataforma no completa esas integraciones.
 - Los scripts de preview pasan a comprobar el límite de acceso de producción;
-  la operatividad de fixtures se prueba en la suite DEV. No acreditan despliegue.
+  `npm run test:production:auth` comprueba además el panel compilado con G7/Gateway
+  contractuales aislados. No acreditan homologación ni despliegue.
 - Revisión UX y técnica por el equipo, permisos efectivos e integración compartida
   siguen separados. No se fusiona ni se despliega este cambio.
 

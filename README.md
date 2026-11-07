@@ -266,7 +266,17 @@ npm run test:e2e -- tests/auth-general.spec.ts tests/promotions-session-ui.spec.
 ```
 
 Las verificaciones de preview (`scripts/verify-production.mjs` y
-`scripts/vercel-smoke.mjs`) comprueban ahora el límite de acceso compilado: rutas
-privadas redirigen al login, sin tablas ni navegación anónimas. Las interacciones
-de fixtures se validan con la suite E2E de desarrollo. Evidencia, diferencias de
-DISEÑO y límites reales en [LOGIN_GENERAL.md](docs/LOGIN_GENERAL.md).
+`scripts/vercel-smoke.mjs`) comprueban el fallo cerrado anónimo. No acreditan un
+login operativo ni preparación para liberar. `npm run test:production:auth`
+compila mock y API con un G7/Gateway contractual aislado: restaura las 58 vistas
+funcionales y la escritura de Pricing del verificador original, y prueba login,
+MFA, expiración, renovación, roles, 401/403, logout y separación de identidades.
+Sus credenciales son fixtures; no es homologación real.
+
+Para comprobar una configuración candidata existe `npm run verify:release:login`.
+Requiere `G6_RELEASE_PREVIEW_URL`, `G6_RELEASE_TEST_EMAIL` y
+`G6_RELEASE_TEST_PASSWORD` en el entorno de Node (nunca `VITE_*`); falla si el
+login no permite navegar o queda MFA pendiente. No hace escrituras comerciales,
+no registra credenciales y no genera trazas. La validación externa con MFA y
+cada provider continúa siendo necesaria. Evidencia y límites reales en
+[LOGIN_GENERAL.md](docs/LOGIN_GENERAL.md) y [auditoría](docs/AUDITORIA_LOGIN_PR70.md).

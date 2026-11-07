@@ -2,6 +2,8 @@ import { useContext, useEffect, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { DataModeContext } from "../config/DataModeContext";
 import { useAuthSession } from "../config/useAuthSession";
+import { canAdminister } from "../../features/auth/authorization";
+import { AccessDenied } from "../../features/auth/components/AccessDenied";
 
 export function RequireSession() {
   const mode = useContext(DataModeContext);
@@ -36,6 +38,7 @@ function AuthenticatedRoutes() {
   if (!view.user || !session) {
     return <Navigate to="/login" replace state={{ from: location.pathname + location.search + location.hash }} />;
   }
+  if (!canAdminister(view.user)) return <AccessDenied />;
   if (validated?.session !== session || validated?.userId !== userId) {
     return <p role="status">Validando sesión…</p>;
   }
