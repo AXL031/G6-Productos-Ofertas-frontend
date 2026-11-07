@@ -1,4 +1,5 @@
 const loopback = new Set(["127.0.0.1", "localhost", "[::1]"]);
+export const protectedCouponRead = "/api/v1/cupones?pagina=1&tamanio=10";
 
 export function targetUrl(value, { originOnly = false, isolatedFixture = false } = {}) {
   let url;
@@ -17,6 +18,9 @@ export function releasePolicy(values, { isolatedFixture = false } = {}) {
   const preview = targetUrl(values.previewUrl, { originOnly: true, isolatedFixture });
   const approved = targetUrl(values.approvedPreviewOrigin, { originOnly: true, isolatedFixture });
   if (preview !== approved) throw new Error("RELEASE_PREVIEW_NOT_APPROVED");
+  if (!isolatedFixture && values.approvedGatewayOperation !== "listarCupones") {
+    throw new Error("RELEASE_GATEWAY_OPERATION_NOT_APPROVED");
+  }
   return Object.freeze({
     preview,
     g7Base: targetUrl(values.approvedG7ApiBase, { isolatedFixture }),

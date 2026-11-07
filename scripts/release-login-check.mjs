@@ -1,5 +1,5 @@
-import { chromium } from "playwright";
-import { permittedRequest, verifyIntegrations, verifyNoRedirect, verifyPreviewLocation } from "./release-login-policy.mjs";
+import { chromium, request as playwrightRequest } from "playwright";
+import { permittedRequest, protectedCouponRead, verifyIntegrations, verifyNoRedirect, verifyPreviewLocation } from "./release-login-policy.mjs";
 import { ReleaseSessionEvidence } from "./release-session-evidence.mjs";
 
 // Runs with a fresh, disposable context: no traces, HAR, screenshots, passwords,
@@ -26,7 +26,8 @@ export async function verifyReleaseLogin(policy, { email, password, manualMfa = 
       let stamp;
       try {
         stamp = evidence.before(policy, request);
-        const headers = { ...request.headers() }; delete headers.cookie;
+        // An explicit empty Cookie also prevents route.fetch from adding jar cookies.
+        const headers = { ...request.headers(), cookie: "" };
         const response = await route.fetch({ maxRedirects: 0, maxRetries: 0, timeout: 15000, headers });
         verifyNoRedirect(response.status());
         await evidence.after(stamp, response);
@@ -48,12 +49,20 @@ export async function verifyReleaseLogin(policy, { email, password, manualMfa = 
     verifyPreviewLocation(policy, page.url());
     const effective = await page.locator('meta[name="g6-auth-integrations"]').getAttribute("content");
     verifyIntegrations(policy, JSON.parse(effective ?? "null"));
-    // Anonymous transport probes only, before entering any credential. OPTIONS
-    // targets the published login URL; GET is the published coupon read.
-    for (const [method, url] of [["OPTIONS", policy.g7Base + "/auth/login"], ["GET", policy.gateway + "/api/v1/cupones"]]) {
-      const response = await context.request.fetch(url, { method, maxRedirects: 0, maxRetries: 0, timeout: 15000 });
-      verifyNoRedirect(response.status());
-      if (!(method === "OPTIONS" ? [200, 204] : [401, 403]).includes(response.status())) throw new Error("RELEASE_PROBE_NOT_ACCEPTABLE");
+    // Test the exact same coupon query anonymously and with the issued Bearer.
+    // Fresh request contexts keep preview and provider cookies out of each probe.
+    for (const [method, url, expected] of [
+      ["OPTIONS", policy.g7Base + "/auth/login", [200, 204]],
+      ["GET", policy.gateway + protectedCouponRead, [401, 403]],
+    ]) {
+      const probe = await playwrightRequest.newContext();
+      try {
+        const response = await probe.fetch(url, { method, maxRedirects: 0, maxRetries: 0, timeout: 15000 });
+        verifyNoRedirect(response.status());
+        if (!expected.includes(response.status())) throw new Error("RELEASE_PROBE_NOT_ACCEPTABLE");
+      } finally {
+        await probe.dispose();
+      }
     }
     verifyIntegrations(policy, JSON.parse(await page.locator('meta[name="g6-auth-integrations"]').getAttribute("content") ?? "null"));
     healthy(); verifyPreviewLocation(policy, page.url());
@@ -110,6 +119,6 @@ export async function verifyReleaseLogin(policy, { email, password, manualMfa = 
     if (await navigation.isVisible()) throw new Error("RELEASE_LOCAL_LOGOUT_NOT_CONFIRMED");
     await evidence.confirmLogout();
     healthy();
-    return { isolatedFixture: policy.isolatedFixture, mfaCompleted, logout204Observed: true, localLogoutVerified: true };
+    return { isolatedFixture: policy.isolatedFixture, mfaCompleted, gatewayProtectedReadVerified: true, logout204Observed: true, localLogoutVerified: true };
   } finally { evidence.dispose(); await context.close(); await browser.close(); }
 }

@@ -1,3 +1,5 @@
+import { protectedCouponRead } from "./release-login-policy.mjs";
+
 // Private, disposable evidence. Never expose DTOs, headers, credentials or tokens
 // in return values/errors/artifacts. This checks protocol linkage, not signatures.
 export class ReleaseSessionEvidence {
@@ -30,7 +32,7 @@ export class ReleaseSessionEvidence {
     const url = new URL(request.url());
     if (url.origin === policy.gateway && url.pathname.startsWith("/api/v1/") && request.method() === "GET") {
       if (!this.#session || request.headers().authorization !== `Bearer ${this.#session.accessToken}`) this.#fail();
-      return { kind: "read", coupon: url.pathname === "/api/v1/cupones" };
+      return { kind: "read", coupon: url.pathname === "/api/v1/cupones", protectedQuery: url.pathname + url.search === protectedCouponRead };
     }
     if (request.method() !== "POST" || !request.url().startsWith(policy.g7Base + "/auth/")) return {};
     const action = request.url().slice((policy.g7Base + "/auth/").length);
@@ -42,7 +44,7 @@ export class ReleaseSessionEvidence {
     } else if (action === "otp/verificar") {
       if (!this.#otpSent || !this.#challenge || body?.challengeToken !== this.#challenge || typeof body?.codigo !== "string" || !/^\d{6}$/.test(body.codigo)) this.#fail();
     } else if (["refresh", "logout"].includes(action)) {
-      if (!this.#session || body?.refreshToken !== this.#session.refreshToken) this.#fail();
+      if (this.#logout || !this.#session || body?.refreshToken !== this.#session.refreshToken) this.#fail();
       if (action === "logout") this.#logout = true;
     } else this.#fail();
     return { kind: action };
@@ -75,8 +77,10 @@ export class ReleaseSessionEvidence {
       for (const item of Array.isArray(dto?.items) ? dto.items : []) {
         if (typeof item?.promocionId === "string") this.promotionIds.add(encodeURIComponent(item.promocionId));
       }
-      this.#read = true;
-      this.#readDone();
+      if (stamp.protectedQuery) {
+        this.#read = true;
+        this.#readDone();
+      }
     } else if (stamp.kind === "logout") {
       this.#session = undefined;
       this.#logoutDone(status === 204);

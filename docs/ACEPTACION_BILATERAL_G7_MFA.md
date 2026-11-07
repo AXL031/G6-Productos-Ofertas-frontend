@@ -20,8 +20,10 @@ la sesión acuerdan y registran, sin secretos:
 3. Cuenta de prueba humana autorizada con `GESTOR_COMERCIAL` y MFA efectivamente
    requerido por G7. El operador controla el buzón/dispositivo correspondiente.
    No usar tokens de servicio, OTP fijo, desactivar MFA ni cambiar grants.
-4. Ventana de prueba, operaciones permitidas, límites de intentos y criterios
-   de revocación. La ejecución automática hace lecturas; no mutaciones comerciales.
+4. Ventana de prueba, límites de intentos y criterios de revocación. Los owners
+   deben acordar la operación de lectura `listarCupones` para este recorrido y
+   confirmar que requiere `userBearer` en el Gateway candidato. Registrar la
+   aprobación y su referencia en el acta antes de configurar el gate.
 
 Si faltan esos acuerdos, el estado sigue **NO EJECUTADO / NO HOMOLOGADO**. Este
 procedimiento no autoriza por sí mismo a usar credenciales reales en cualquier URL.
@@ -35,6 +37,7 @@ $env:G6_RELEASE_APPROVED_PREVIEW_ORIGIN = '<origen HTTPS aprobado por Frontend>'
 $env:G6_RELEASE_PREVIEW_URL = '<mismo origen HTTPS exacto>'
 $env:G6_RELEASE_APPROVED_G7_API_BASE = '<base HTTPS completa aprobada por G7>'
 $env:G6_RELEASE_APPROVED_GATEWAY_ORIGIN = '<origen HTTPS aprobado por Gateway>'
+$env:G6_RELEASE_APPROVED_GATEWAY_OPERATION = 'listarCupones' # Solo con el acuerdo registrado
 $env:G6_RELEASE_TEST_EMAIL = Read-Host 'Correo de prueba autorizado'
 $mfaAcceptancePassword = Read-Host 'Contraseña' -AsSecureString
 try {
@@ -58,9 +61,10 @@ Antes de rellenar correo/contraseña, el verificador:
 - comprueba el preview sin seguir redirecciones y su URL efectiva en el navegador;
 - compara `g6-auth-integrations`, publicado desde la configuración que usan los
   transports, con las bases aprobadas de G7 y Gateway;
-- sondea sin credenciales `OPTIONS <G7>/auth/login` y `GET <Gateway>/api/v1/cupones`,
-  sin seguir redirecciones. Exige respectivamente 200/204 y 401/403; un 200
-  anónimo del recurso privado, 404, 500 o 503 impide introducir credenciales;
+- sondea `OPTIONS <G7>/auth/login` y `GET <Gateway>/api/v1/cupones?pagina=1&tamanio=10`
+  en contextos sin credenciales ni cookies. Acepta 200/204 para OPTIONS y
+  401/403 para el GET anónimo. Bloquea los demás estados, incluidos 200 anónimo,
+  404, 429, 5xx y redirecciones, antes de introducir credenciales;
 - limita el tráfico efectivo a documentos/recursos del preview, endpoints G7
   publicados y al recorrido Gateway: GET de Cupones, solo `pagina=1` y
   `tamanio=10` sin claves duplicadas/adicionales, y GET sin query de las
@@ -75,10 +79,16 @@ excepciones generales**. Coordinar la configuración/contrato con el owner.
 
 El gate observa el POST login y su DTO de sesión; si hay desafío, enlaza
 solicitud EMAIL 202 y verificación OTP 200 al mismo desafío. Una rotación debe
-presentar el refresh emitido y mantener la identidad. La lectura protegida debe
-llevar exactamente el Bearer obtenido de esa sesión. Esta comparación se hace
-solo en memoria privada, sin exportar credenciales, DTO, OTP o tokens; no valida
-la firma JWT ni demuestra que Backend la homologue. Tras «Consultar precios»
+presentar el refresh emitido y mantener la identidad. El GET autenticado debe
+usar exactamente la URL paginada de la sonda, llevar el Bearer de la sesión,
+carecer de cookies y devolver 200. La comparación del Bearer se hace en memoria
+privada. En la aceptación H4, el owner de Gateway confirma en su evidencia
+autorizada que aplicó su política de autenticación y autorización a ese par de
+peticiones. El acta registra la operación, los estados, la hora y la referencia
+de la evidencia sin incluir JWT, credenciales ni cabeceras. La operación está
+definida como `listarCupones` con `userBearer` en el
+[OpenAPI de G6](https://github.com/Taller-SW-Web/G6-Productos-Ofertas-docs/blob/a7778ec1a22811c1213a94ef096ab905911342cc/contratos/http/openapi.yaml).
+Tras «Consultar precios»
 exige `/precios`, «Gestión de precios» y su descripción propia; acredita
 navegación, no integración del provider Pricing.
 
@@ -95,10 +105,10 @@ directo a `/cupones` y su redirección a login.
 El contrato G7 define logout público e idempotente: el 204 también corresponde
 a un refresh inexistente, vencido o ya revocado. Por eso **204 observado no
 acredita revocación efectiva**, ni revocación inmediata de cualquier access JWT.
-En la sesión bilateral, el owner G7 debe confirmar por su mecanismo autorizado
-que el refresh de esa sesión no puede emitir otra sesión después del logout.
-Si se acuerda una prueba de refresh, la realiza una sola vez el operador G7 en
-su entorno seguro, sin copiar tokens al acta, al frontend o a archivos. Gateway
+En la sesión bilateral, el owner G7 debe confirmar la revocación de esa sesión
+con evidencia de su estado o auditoría autorizada. El gate bloquea intentos
+adicionales de refresh o logout desde que empieza el cierre. La comprobación
+del owner se hace sin volver a enviar el refresh token. Gateway
 confirma el comportamiento del access JWT conforme a su política publicada
 (incluida su vigencia), sin inventar una obligación de revocación instantánea.
 Registrar solo resultado, hora y referencia de soporte autorizada. Sin esas

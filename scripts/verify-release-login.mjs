@@ -11,6 +11,7 @@ try {
     approvedPreviewOrigin: process.env.G6_RELEASE_APPROVED_PREVIEW_ORIGIN,
     approvedG7ApiBase: process.env.G6_RELEASE_APPROVED_G7_API_BASE,
     approvedGatewayOrigin: process.env.G6_RELEASE_APPROVED_GATEWAY_ORIGIN,
+    approvedGatewayOperation: process.env.G6_RELEASE_APPROVED_GATEWAY_OPERATION,
   });
   const result = await verifyReleaseLogin(policy, {
     email: process.env.G6_RELEASE_TEST_EMAIL,
@@ -19,12 +20,19 @@ try {
     onMfaPending: () => console.log("MFA pendiente: el operador autorizado debe solicitar y escribir el código real en esta misma ventana. No se registra el código."),
   });
   console.log(result.mfaCompleted
-    ? "PASS recorrido con desafío MFA completado, lectura con Bearer de sesión, navegación y logout local/204 G7. Revocación efectiva y homologación pendientes del acta bilateral."
-    : "PASS login contractual, lectura con Bearer de sesión, navegación y logout local/204 G7 en destinos aprobados. No acredita MFA real, revocación efectiva ni homologación general.");
+    ? "PASS recorrido con MFA completado, denegación anónima y lectura con Bearer en listarCupones. Cierre local verificado y HTTP 204 de G7 observado. Revocación efectiva y homologación pendientes del acta bilateral."
+    : "PASS recorrido con denegación anónima y lectura con Bearer en listarCupones. Cierre local verificado y HTTP 204 de G7 observado. MFA real, revocación efectiva y homologación pendientes del acta bilateral.");
 } catch (error) {
   // Browser errors can contain form values or URLs: never print raw messages.
-  console.error(error instanceof Error && error.message === "RELEASE_MFA_PENDING"
-    ? "NO APTO PARA LIBERAR: desafío MFA pendiente; requiere intervención bilateral autorizada."
-    : "NO APTO PARA LIBERAR: configuración, destinos, redirecciones o recorrido no verificados. No se registraron credenciales.");
+  const message = error instanceof Error ? error.message : "";
+  if (message === "RELEASE_MFA_PENDING") {
+    console.error("NO APTO PARA LIBERAR. Desafío MFA pendiente de intervención bilateral.");
+  } else if (message === "RELEASE_LOGOUT_NOT_CONFIRMED") {
+    console.error("NO APTO PARA LIBERAR. Cierre local verificado. HTTP 204 de G7 sin confirmar. Revocación pendiente de evidencia del owner.");
+  } else if (message === "RELEASE_GATEWAY_OPERATION_NOT_APPROVED") {
+    console.error("NO APTO PARA LIBERAR. Falta la aprobación de listarCupones acordada con los owners.");
+  } else {
+    console.error("NO APTO PARA LIBERAR. Configuración, destinos, redirecciones o recorrido sin verificar.");
+  }
   process.exitCode = 1;
 }

@@ -25,6 +25,7 @@ test("no introduce credenciales en un origen no aprobado", async () => {
         G6_RELEASE_APPROVED_PREVIEW_ORIGIN: "https://approved.example.test",
         G6_RELEASE_APPROVED_G7_API_BASE: "https://g7.example.test/api/v1",
         G6_RELEASE_APPROVED_GATEWAY_ORIGIN: "https://gateway.example.test",
+        G6_RELEASE_APPROVED_GATEWAY_OPERATION: "listarCupones",
         G6_RELEASE_TEST_EMAIL: "synthetic@example.test", G6_RELEASE_TEST_PASSWORD: "synthetic-test-only" },
     }, error => resolve({ code: error?.code ?? 0 })));
     assert.equal(result.code, 1);

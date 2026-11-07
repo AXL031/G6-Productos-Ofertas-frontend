@@ -5,6 +5,7 @@ import { releasePolicy, targetUrl, verifyIntegrations, permittedRequest, verifyN
 const approved = {
   previewUrl: "https://preview.example.test", approvedPreviewOrigin: "https://preview.example.test",
   approvedG7ApiBase: "https://identity.example.test/api/v1", approvedGatewayOrigin: "https://gateway.example.test",
+  approvedGatewayOperation: "listarCupones",
 };
 test("R4-02 permite paginación inicial y solo padres acreditados por Cupones", () => {
   const policy = releasePolicy(approved);
@@ -30,6 +31,8 @@ for (const [name, change] of [
   ["fragmento", { previewUrl: "https://preview.example.test/#evil" }],
   ["G7 HTTP", { approvedG7ApiBase: "http://identity.example.test/api/v1" }],
   ["Gateway HTTP", { approvedGatewayOrigin: "http://gateway.example.test" }],
+  ["operación Gateway sin aprobación", { approvedGatewayOperation: undefined }],
+  ["operación Gateway ajena al recorrido", { approvedGatewayOperation: "otraOperacion" }],
 ]) test(`rechaza ${name}`, () => assert.throws(() => releasePolicy({ ...approved, ...change })));
 
 test("excepción de fixture requiere activación explícita y TODOS los destinos loopback", () => {

@@ -237,7 +237,9 @@ sesión al entrar y al vencer el acceso. Cambiar de sección conserva el shell
 montado y no reinicia la validación de la misma sesión.
 El logout del encabezado borra la sesión local aunque falle la red. Las respuestas
 tardías no la restauran. Los GET contractuales pueden renovar una vez ante
-`401 TOKEN_INVALIDO`; las escrituras no se reenvían y un 403 no renueva sesión.
+`401 TOKEN_INVALIDO`. Si ese mismo código vuelve tras renovar, se invalida el
+token rechazado. Un 401 desconocido o ilegible y un 403 conservan la sesión.
+Las escrituras se envían una sola vez por intento.
 
 Política de pruebas/demostración: `DEV` + modo global `mock` permite fixtures sin
 crear un usuario G7. En `api` no hay bypass. En producción tampoco lo hay en modo
@@ -275,16 +277,18 @@ Sus credenciales son fixtures; no es homologación real.
 
 Para comprobar una configuración candidata existe `npm run verify:release:login`.
 Requiere aprobaciones independientes `G6_RELEASE_APPROVED_PREVIEW_ORIGIN`,
-`G6_RELEASE_APPROVED_G7_API_BASE` y `G6_RELEASE_APPROVED_GATEWAY_ORIGIN`, además
+`G6_RELEASE_APPROVED_G7_API_BASE`, `G6_RELEASE_APPROVED_GATEWAY_ORIGIN` y
+`G6_RELEASE_APPROVED_GATEWAY_OPERATION=listarCupones`, además
 de `G6_RELEASE_PREVIEW_URL`, `G6_RELEASE_TEST_EMAIL` y `G6_RELEASE_TEST_PASSWORD`
 en el entorno de Node (nunca `VITE_*`). Exige HTTPS/origen exacto, comprueba las
 bases efectivas antes de rellenar campos y bloquea redirecciones de documentos y
 peticiones de autenticación. El CLI productivo no admite HTTP ni un flag de fixture.
 Las sondas obligatorias aceptan G7 OPTIONS 200/204 y Gateway GET anónimo 401/403.
-El gate enlaza login/MFA contractual, token de sesión y Bearer de la lectura de
-Cupones. Limita Gateway a la paginación inicial y sus promociones padre; comprueba
-URL y contenido propios de Precios. El logout exige 204 de G7 y cierre local
-tras atrás/recarga; ese 204 idempotente no acredita revocación efectiva.
+La sonda y la lectura autenticada usan la misma URL de Cupones, con
+`pagina=1&tamanio=10`. La lectura debe devolver 200 con el Bearer de esa sesión.
+El gate comprueba URL y contenido propios de Precios. Para el logout registra
+el cierre local y el HTTP 204 de G7 por separado. La revocación efectiva
+requiere evidencia del owner sin volver a enviar el refresh token.
 
 Sin intervención manual falla si MFA queda pendiente. Para la aceptación real,
 `npm run verify:release:login -- --mfa-manual` abre una ventana donde el operador
