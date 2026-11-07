@@ -180,6 +180,23 @@ test("rechaza payloads ausentes o inconsistentes antes de consultar Vercel", asy
   await assert.rejects(verificar({ event: crearEvent({ project: { id: ids.projectId, name: "other" } }) }), /nombre de proyecto/);
 });
 
+test("no consulta Vercel cuando el evento no pertenece al proyecto o entorno aprobado", async () => {
+  for (const event of [
+    crearEvent({ project: { id: "prj_ajeno", name: "g6-productos-ofertas" } }),
+    crearEvent({ environment: "preview" }),
+  ]) {
+    let apiConsultada = false;
+    await assert.rejects(verificar({
+      event,
+      fetchImpl: async () => {
+        apiConsultada = true;
+        return { ok: true, status: 200, json: async () => crearDeployment() };
+      },
+    }));
+    assert.equal(apiConsultada, false);
+  }
+});
+
 test("solo permite hosts HTTPS inmutables del proyecto, sin alias, URL completa, puerto ni ruta", async (t) => {
   for (const url of [
     "g6-productos-ofertas.vercel.app",
