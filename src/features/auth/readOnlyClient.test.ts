@@ -92,4 +92,10 @@ describe("consultas contractuales de lectura", () => {
     expect(resolveGatewayOrigin("https://otro.example.test", { hostname: "fork.vercel.app", origin }, true)).toBe("https://otro.example.test");
     expect(resolveG7ApiBase("https://g7-auth-service.onrender.com/api/v1", { hostname: "fork.vercel.app", origin }, true)).toBe(origin + "/g7/api/v1");
   });
+  it("rechaza configuración inválida sin interrumpir la pantalla de acceso", () => {
+    for (const value of ["http://gateway.example.test", "invalid", "https://user:secret@example.test"]) {
+      expect(resolveGatewayOrigin(value, { hostname: "fork.vercel.app", origin }, true)).toBeUndefined();
+      expect(resolveG7ApiBase(value, { hostname: "fork.vercel.app", origin }, true)).toBeUndefined();
+    }
+  });
 });

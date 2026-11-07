@@ -10,7 +10,9 @@ export function resolveGatewayOrigin(
   production: boolean,
 ): string | undefined {
   if (!configured) return undefined;
-  const origin = secureBase(configured, true);
+  let origin: string;
+  try { origin = secureBase(configured, true); }
+  catch { return undefined; }
   return production && location.hostname.endsWith(".vercel.app") && origin === azureGateway
     ? location.origin
     : origin;
@@ -22,7 +24,9 @@ export function resolveG7ApiBase(
   production: boolean,
 ): string | undefined {
   if (!configured) return undefined;
-  const base = secureBase(configured);
+  let base: string;
+  try { base = secureBase(configured); }
+  catch { return undefined; }
   return production && location.hostname.endsWith(".vercel.app") && base === "https://g7-auth-service.onrender.com/api/v1"
     ? location.origin + "/g7/api/v1"
     : base;
