@@ -2,8 +2,8 @@
 
 ## Estado actual de auditoría H63 — 2026-11-07
 
-- PR [#63](https://github.com/Taller-SW-Web/G6-Productos-Ofertas-frontend/pull/63) está abierta, lista para revisión y aún sin merge. HEAD de código H63 evaluado integralmente: `9856c4ae79812e14e1a82d05462ad207986ddfb2`.
-- CI integral de los cambios H63: [run 42346208332](https://github.com/Taller-SW-Web/G6-Productos-Ofertas-frontend/actions/runs/42346208332), `success` sobre ese HEAD; los 16 jobs, cuatro fragmentos E2E y el agregador terminaron correctamente.
+- PR [#63](https://github.com/Taller-SW-Web/G6-Productos-Ofertas-frontend/pull/63) está abierta, lista para revisión y aún sin merge. HEAD de la PR al capturar esta evidencia: `6b1e81ea6193846431f9acddf7de562d279e5c07`.
+- Último CI integral completo al capturar esta evidencia: [run 42347582850](https://github.com/Taller-SW-Web/G6-Productos-Ofertas-frontend/actions/runs/42347582850), `success` sobre ese HEAD; todos los trabajos, cuatro fragmentos E2E y el agregador terminaron correctamente.
 - Playwright enumeró 559 pruebas en 56 archivos. Los cuatro fragmentos E2E pasaron; el verificador de CI comprobó la cobertura de manifiestos, sin cambiar archivos de pruebas E2E. La enumeración local `npm run test:e2e -- --list` confirmó el mismo total.
 - Pruebas nuevas de scripts: 51/51; `npm run lint`, `npm run typecheck` y `npm test` pasaron. Las 438 pruebas unitarias se ejecutaron en la división existente por módulos.
 - Producción sigue en el deployment `dpl_8wKLFp3QQAFYAirFsxcqFc1a8Ln9`, `READY`, rama `master`, SHA `4d1b85969816f2879a6f6f17b3553cccba0ab764`. La configuración Vercel registra `autoAssignCustomDomains: true` y el deployment lista el dominio de Production junto con los aliases Git de `master`.
