@@ -85,7 +85,7 @@ export function createReadOnlyClient(origin: string, session: ReadSession, fetch
       if (options.publicReadOnly && requiresPublicReadChannel(id) && !values.canal?.trim())
         throw new ReadFailure("Selecciona el canal para consultar los datos comerciales.");
       const path = buildReadPath(id, values);
-      const signal = AbortSignal.any([cancellation, AbortSignal.timeout(20000)]);
+      const signal = AbortSignal.any([cancellation, AbortSignal.timeout(65000)]);
       signal.throwIfAborted();
       const token = await session.getAccessToken(signal);
       signal.throwIfAborted();

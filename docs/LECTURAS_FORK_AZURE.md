@@ -30,6 +30,11 @@ las llamadas a Azure y G7 pasan por rewrites de mismo origen para evitar CORS,
 sin cambiar sus destinatarios finales. Las respuestas dinámicas usan no-store.
 Fuera de Vercel se mantienen los orígenes explícitos configurados.
 
+Las lecturas esperan hasta 65 segundos y conservan cancelación manual. En Azure
+se observaron arranques desde cero de 26–36 segundos; Gateway admite hasta 60
+segundos para la respuesta del servicio. Este ajuste mantiene las imágenes,
+réplicas mínimas y autenticación existentes.
+
 Esta entrega conserva imágenes e infraestructura existentes. La compilación y
 las pruebas del consumidor no acreditan que los 58 endpoints respondan con los
 roles disponibles ni que las dependencias de Azure estén listas. Los permisos,
