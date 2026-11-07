@@ -5,7 +5,7 @@ import { GatewayOriginContext } from "../../app/config/GatewayOriginContext";
 import { DataModeContext } from "../../app/config/DataModeContext";
 import { useAuthSession } from "../../app/config/useAuthSession";
 import { readOperations } from "./readOperations";
-import { createReadOnlyClient, ReadFailure, type ReadResult } from "./readOnlyClient";
+import { createReadOnlyClient, ReadFailure, requiresPublicReadChannel, type ReadResult } from "./readOnlyClient";
 
 const modules = [...new Set(readOperations.map(item => item.module))];
 const labels: Record<string, string> = { q: "Buscar", skus: "SKU (separados por comas)", sku: "SKU", pagina: "Página", tamanio: "Resultados por página", desde: "Desde (fecha y hora ISO)", hasta: "Hasta (fecha y hora ISO)", at: "Instante de consulta (fecha y hora ISO)", productoId: "ID de producto", categoriaId: "ID de categoría", marcaId: "ID de marca", batchId: "ID de lote", exportId: "ID de exportación", location_id: "ID de ubicación", locationId: "ID de ubicación", target_location_id: "ID de ubicación destino", operationId: "ID de operación", canal: "Canal", formato: "Formato" };
@@ -78,13 +78,13 @@ export function ReadOnlyPage() {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   return <Stack gap="lg">
-    <PageHeader title="Consultas de los módulos" description="Consulta listados, detalles, estados y reportes. Los permisos de tu cuenta se verifican en cada consulta." />
+    <PageHeader title="Consultas de los módulos" description="Consulta listados, detalles, estados y reportes disponibles en el modo de lectura del backend. Mantén tu sesión iniciada para acceder." />
     {(mode !== "api" || !client) && <FeedbackAlert semantic="warning" title="Conexión no disponible">Esta vista requiere el modo API, la conexión al backend y una sesión activa.</FeedbackAlert>}
     <Paper withBorder p="lg"><form onSubmit={event => void consult(event)}><Stack gap="md">
       <SimpleGrid cols={2}><Select label="Módulo" data={modules} value={module} allowDeselect={false} onChange={next => { if (next) { setModule(next); select(readOperations.find(item => item.module === next)!.id); } }} />
         <Select label="Consulta" searchable data={operations.map(item => ({ value: item.id, label: item.title }))} value={id} allowDeselect={false} onChange={next => { if (next) select(next); }} /></SimpleGrid>
       <SimpleGrid cols={3}>{operation.parameters.map(parameter => parameter.enum || parameter.type === "boolean"
-        ? <Select key={parameter.name} label={label(parameter.name)} required={parameter.required} clearable={!parameter.required} data={(parameter.enum ?? [true, false]).map(value => ({ value: String(value), label: typeof value === "boolean" ? value ? "Sí" : "No" : String(value) }))} value={values[parameter.name] || null} onChange={value => setValues(current => ({ ...current, [parameter.name]: value ?? "" }))} />
+        ? <Select key={parameter.name} label={label(parameter.name)} description={parameter.name === "canal" && requiresPublicReadChannel(id) ? "Elige el canal de venta para esta lectura comercial." : undefined} required={parameter.required || (parameter.name === "canal" && requiresPublicReadChannel(id))} clearable={!parameter.required} data={(parameter.enum ?? [true, false]).map(value => ({ value: String(value), label: typeof value === "boolean" ? value ? "Sí" : "No" : String(value) }))} value={values[parameter.name] || null} onChange={value => setValues(current => ({ ...current, [parameter.name]: value ?? "" }))} />
         : <TextInput key={parameter.name} label={label(parameter.name)} required={parameter.required} value={values[parameter.name] ?? ""} inputMode={parameter.type === "integer" || parameter.type === "number" ? "decimal" : undefined} onChange={event => { const value = event.currentTarget.value; setValues(current => ({ ...current, [parameter.name]: value })); }} />)}</SimpleGrid>
       <Group><Button type="submit" loading={busy} disabled={!client || mode !== "api"}>Consultar</Button>{busy && <Button variant="subtle" onClick={() => { pending.current?.abort(); setBusy(false); }}>Cancelar consulta</Button>}</Group>
     </Stack></form></Paper>

@@ -47,14 +47,22 @@ describe("consultas contractuales de lectura", () => {
   it("en el modo público existente mantiene la sesión de UI y no adjunta bearer al GET", async () => {
     const { session, fetcher } = setup();
     const client = createReadOnlyClient(origin, session, fetcher, { publicReadOnly: true });
-    await client.read("listarProductos", {}, signal());
+    await client.read("listarProductos", { canal: "MARKETPLACE" }, signal());
     expect(session.getAccessToken).toHaveBeenCalledTimes(1);
     expect(fetcher.mock.calls[0]?.[1]?.headers).not.toHaveProperty("Authorization");
+  });
+  it("en modo público exige elegir el canal comercial antes de consultar productos", async () => {
+    const { session, fetcher } = setup();
+    const client = createReadOnlyClient(origin, session, fetcher, { publicReadOnly: true });
+    await expect(client.read("listarProductos", {}, signal())).rejects.toThrow("Selecciona el canal");
+    expect(fetcher).not.toHaveBeenCalled();
+    await client.read("listarProductos", { canal: "MARKETPLACE" }, signal());
+    expect(fetcher).toHaveBeenCalledWith(origin + "/api/v1/productos?canal=MARKETPLACE", expect.objectContaining({ method: "GET" }));
   });
   it("una lectura pública denegada no intenta JWT ni cambia la sesión", async () => {
     const { session, fetcher } = setup([Response.json({ code: "TOKEN_INVALIDO" }, { status: 401 })]);
     const client = createReadOnlyClient(origin, session, fetcher, { publicReadOnly: true });
-    await expect(client.read("listarProductos", {}, signal())).rejects.toThrow("no está habilitada");
+    await expect(client.read("listarProductos", { canal: "MARKETPLACE" }, signal())).rejects.toThrow("no está habilitada");
     expect(session.refreshAccessToken).not.toHaveBeenCalled();
     expect(session.invalidateAccessToken).not.toHaveBeenCalled();
     expect(fetcher).toHaveBeenCalledTimes(1);

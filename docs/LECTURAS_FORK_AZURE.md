@@ -12,7 +12,12 @@ Por instrucción del usuario se conserva el modo académico PUBLIC_READ_ONLY ya
 activo en Azure: estos GET se envían sin bearer, después de comprobar la sesión
 de UI. Esto no cambia permisos del backend ni concede acceso a consultas que
 este rechace. No se reintenta anónimamente una solicitud con bearer rechazado.
-Los transportes administrativos existentes conservan su JWT. El cliente soporta
+Los transportes administrativos existentes conservan su JWT. En Azure falta la
+configuración de validación G7, por lo que esas pantallas pueden responder 503;
+no se presentan como integradas por haber conectado `/consultas`. La vista de
+lectura comercial exige seleccionar el canal para productos y precios: al no
+enviar JWT, el backend no puede deducir el contexto de un gestor humano.
+El cliente soporta
 también GET autenticado con una sola renovación ante TOKEN_INVALIDO. No hay fallback
 mock ni se inventan campos administrativos a partir de DTO comerciales.
 El resultado se muestra con los campos del servicio, distinguiendo null, cero,

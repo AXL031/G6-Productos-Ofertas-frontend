@@ -10,6 +10,11 @@ export interface ReadSession {
 export type ReadResult = { kind: "data"; value: unknown } | { kind: "file"; blob: Blob; filename: string };
 export class ReadFailure extends Error {}
 
+// These commercial reads allow an omitted channel for a verified human JWT.
+// Azure PUBLIC_READ_ONLY has no such principal; the user must choose the channel.
+export const requiresPublicReadChannel = (id: string) =>
+  ["listarProductos", "obtenerProducto", "consultarPrecios", "obtenerPrecioSku"].includes(id);
+
 function validate(parameter: ReadParameter, value: string): void {
   if (parameter.enum && !parameter.enum.some(item => String(item) === value))
     throw new ReadFailure(`Selecciona un valor válido para ${parameter.name}.`);
@@ -77,6 +82,8 @@ export function createReadOnlyClient(origin: string, session: ReadSession, fetch
   const base = secureBase(origin, true);
   return {
     async read(id: string, values: Readonly<Record<string, string>>, cancellation: AbortSignal): Promise<ReadResult> {
+      if (options.publicReadOnly && requiresPublicReadChannel(id) && !values.canal?.trim())
+        throw new ReadFailure("Selecciona el canal para consultar los datos comerciales.");
       const path = buildReadPath(id, values);
       const signal = AbortSignal.any([cancellation, AbortSignal.timeout(20000)]);
       signal.throwIfAborted();
