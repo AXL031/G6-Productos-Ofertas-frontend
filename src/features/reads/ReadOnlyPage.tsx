@@ -34,13 +34,14 @@ function ResultValue({ value, depth = 0 }: { value: unknown; depth?: number }) {
   return <Stack gap="md">{Object.entries(value).map(([key, item]) => <div key={key}><Text fw={600} size="sm" mb={4}>{label(key)}</Text><ResultValue value={item} depth={depth + 1} /></div>)}</Stack>;
 }
 
-export function ReadOnlyPage() {
+export function ReadOnlyPage({ initialOperationId = "listarProductos" }: { initialOperationId?: string }) {
   const gateway = useContext(GatewayOriginContext);
   const mode = useContext(DataModeContext);
   const { session } = useAuthSession();
-  const [module, setModule] = useState("Catálogo");
-  const [id, setId] = useState("listarProductos");
-  const [values, setValues] = useState<Record<string, string>>(() => defaults("listarProductos"));
+  const initialOperation = readOperations.find(item => item.id === initialOperationId)!;
+  const [module, setModule] = useState(initialOperation.module);
+  const [id, setId] = useState(initialOperationId);
+  const [values, setValues] = useState<Record<string, string>>(() => defaults(initialOperationId));
   const [result, setResult] = useState<ReadResult | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);

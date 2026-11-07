@@ -1,6 +1,6 @@
 # Consultas mínimas del fork sobre Azure
 
-La ruta `/consultas`, accesible desde el menú e inicio del modo API, reúne las
+La ruta `/consultas`, accesible desde el menú del modo API, reúne las
 58 operaciones GET externas de OpenAPI `0.6.0-rc.3`, Docs
 `aba8d1ca998cfcd2db1c4fa87654036a5a4c1ac1`. Incluye listados, detalle, filtros,
 paginación contractual, seguimiento y descargas existentes de los ocho servicios.
@@ -12,10 +12,10 @@ Por instrucción del usuario se conserva el modo académico PUBLIC_READ_ONLY ya
 activo en Azure: estos GET se envían sin bearer, después de comprobar la sesión
 de UI. Esto no cambia permisos del backend ni concede acceso a consultas que
 este rechace. No se reintenta anónimamente una solicitud con bearer rechazado.
-Los transportes administrativos existentes conservan su JWT. En Azure falta la
-configuración de validación G7, por lo que esas pantallas pueden responder 503;
-no se presentan como integradas por haber conectado `/consultas`. La vista de
-lectura comercial exige seleccionar el canal para productos y precios: al no
+Por autorización expresa del usuario, los transportes de Catálogo, Taxonomía,
+Promociones y Bulk también omiten JWT en sus GET. Siguen exigiendo sesión de UI
+y conservan JWT en POST/PATCH. Los GET públicos denegados no fuerzan renovación
+ni invalidan la sesión. La vista de lectura comercial exige seleccionar el canal para productos y precios: al no
 enviar JWT, el backend no puede deducir el contexto de un gestor humano.
 El cliente soporta
 también GET autenticado con una sola renovación ante TOKEN_INVALIDO. No hay fallback
@@ -23,6 +23,13 @@ mock ni se inventan campos administrativos a partir de DTO comerciales.
 El resultado se muestra con los campos del servicio, distinguiendo null, cero,
 colección vacía, error y último resultado confirmado. Las colecciones se limitan
 visualmente a 200 filas; el usuario puede aplicar la paginación del servicio.
+
+En modo API, las entradas de productos, combos, precios, auditoría e inventario
+usan la vista de consultas preseleccionada para su operación. Así se muestran
+los DTO reales sin fabricar los estados/versiones administrativos que faltan
+en una lectura comercial. Los formularios de escritura, la demostración local
+y el guard de login se conservan. Las escrituras siguen pendientes de la
+configuración de validación G7 de Azure y quedan fuera de esta entrega de lectura.
 
 `vercel.json` fija explícitamente el build API y las dos URLs públicas. No son
 secretos. Los secretos y JWT no forman parte del build. En dominios `vercel.app`,
