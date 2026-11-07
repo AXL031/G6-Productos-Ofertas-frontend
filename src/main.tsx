@@ -10,6 +10,10 @@ import "@fontsource/oswald/latin-700.css";
 import { theme, cssVariablesResolver } from "./theme/theme";
 import "./theme/global.css";
 import { App } from "./app/App";
+import {
+  configureTaxonomyGateway,
+  createAuthenticatedTaxonomyGateway,
+} from "./features/taxonomy/services/taxonomyGatewayRuntime";
 import { createPricingRuntime } from "./features/pricing/services/pricingService";
 import { PricingProvider } from "./features/pricing/components/PricingProvider";
 import { resolveDataMode } from "./app/config/dataMode";
@@ -21,6 +25,8 @@ import { getCatalogServices } from "./features/catalog/services/catalogServices"
 import { createOptionalCatalogHttpServices } from "./features/catalog/services/catalogHttpRuntime";
 import { createCombosRuntime } from "./features/combos/services/combosService";
 import { CombosProvider } from "./features/combos/components/CombosProvider";
+import { BulkRepositoryContext } from "./features/bulk/services/BulkRepositoryContext";
+import { createBulkFetchTransport, createHttpBulkRepository } from "./features/bulk/adapters/httpBulkRepository";
 
 const root = createRoot(document.getElementById("root")!);
 async function start() {
@@ -39,8 +45,16 @@ async function start() {
           await import("./features/promotions/services/promotionSessionRuntime")
         ).createOptionalPromotionSessionRuntime(gatewayOrigin, securityApiBase)
       : null;
+  if (mode === "api" && gatewayOrigin && promotions) {
+    configureTaxonomyGateway(
+      createAuthenticatedTaxonomyGateway(gatewayOrigin, promotions.session),
+    );
+  }
   const combosRuntime = await createCombosRuntime(mode, runtime);
   const catalogServices = (mode === "api" ? createOptionalCatalogHttpServices(gatewayOrigin) : null) ?? getCatalogServices(mode);
+  const bulkRepository = mode === "api" && gatewayOrigin && promotions?.session
+    ? createHttpBulkRepository(createBulkFetchTransport(gatewayOrigin), promotions.session)
+    : null;
   root.render(
     <StrictMode>
       <MantineProvider
@@ -49,6 +63,7 @@ async function start() {
         forceColorScheme="light"
       >
         <DataModeContext.Provider value={mode}>
+          <BulkRepositoryContext.Provider value={bulkRepository}>
           <CatalogServicesContext.Provider value={catalogServices}>
             <PricingProvider runtime={runtime}>
               <PromotionSessionContext.Provider
@@ -64,6 +79,7 @@ async function start() {
               </PromotionSessionContext.Provider>
             </PricingProvider>
           </CatalogServicesContext.Provider>
+          </BulkRepositoryContext.Provider>
         </DataModeContext.Provider>
       </MantineProvider>
     </StrictMode>,

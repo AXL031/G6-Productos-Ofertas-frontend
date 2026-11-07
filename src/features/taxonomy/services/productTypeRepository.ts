@@ -15,7 +15,31 @@ export const PRODUCT_TYPE_ATTRIBUTE_LIMIT = 20;
 
 export interface ProductTypeListResult {
   items: ProductTypeListItem[];
-  limite: number;
+  limite: number | null;
+}
+
+export interface ProductTypeSchema {
+  tipoProducto: {
+    tipoProductoId: string;
+    nombre: string;
+    estado: "ACTIVO" | "INACTIVO";
+    schemaVersion: number;
+  };
+  caracteristicas: Array<{
+    caracteristicaId: string;
+    obligatoria: boolean;
+    estado: "ACTIVO" | "INACTIVO";
+    schemaVersion: number;
+    caracteristica: null | {
+      caracteristicaId: string;
+      nombre: string;
+      tipo: "TEXTO" | "NUMERO" | "LISTA";
+      unidadMedida?: string | null;
+      estado: "ACTIVO" | "INACTIVO";
+      valores?: Array<{ estado: "ACTIVO" | "INACTIVO" }>;
+    };
+  }>;
+  schemaVersion: number;
 }
 
 // Contract shaped like a real HTTP API: no simulation parameters. The mock adapter
