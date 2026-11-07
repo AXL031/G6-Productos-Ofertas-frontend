@@ -357,7 +357,8 @@ jobs:
           retention-days: 7
 
   validacion_integral:
-    name: Validación integral de integración continua
+    # La protección real de master exige el contexto de GitHub Actions `validate`.
+    name: validate
     if: always()
     needs:
       - revision_estilo
