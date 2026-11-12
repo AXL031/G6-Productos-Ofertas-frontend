@@ -1,11 +1,10 @@
 # Inventario — integración HTTP (MK-015 / MK-016, issue #104)
 
-Estado: **PARTIAL**. El adaptador HTTP está implementado y probado contra el
-contrato vigente con un transporte inyectado. La aplicación **no** está
-conectada al Gateway porque el composition root compartido (#45/#109) y su
-cliente todavía no existen, y `CommercialModeGate` mantiene `/inventario`
-bloqueado en modo API (`TAC-P0-03`). Ninguna operación se declara integrada de
-extremo a extremo.
+Estado: **GATEWAY_CONNECTED**. El adaptador HTTP de inventario está conectado al
+API Gateway en el composition root (`src/startApplication.tsx`) a través de
+`authenticatedInventoryTransport.ts`, soportando sesión autenticada con G7
+(rotación y verificación) y modo demo sin autenticación, y `/inventario` se
+encuentra habilitado en `CommercialModeGate.tsx`.
 
 Corte **Hito 4 (2026-10-20, iteración 2)**: además de la sincronización con
 `master` (`6e0448a`), la normalización de `"all"`, la carga parcial del

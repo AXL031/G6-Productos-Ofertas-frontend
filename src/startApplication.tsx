@@ -22,6 +22,9 @@ import { createCombosRuntime } from "./features/combos/services/combosService";
 import { CombosProvider } from "./features/combos/components/CombosProvider";
 import { BulkRepositoryContext } from "./features/bulk/services/BulkRepositoryContext";
 import { createBulkFetchTransport, createHttpBulkRepository } from "./features/bulk/adapters/httpBulkRepository";
+import { configureInventoryApi } from "./features/inventory/services/inventoryProvider";
+import { createHttpInventoryRepository } from "./features/inventory/adapters/apiInventoryAdapter";
+import { createAuthenticatedInventoryTransport } from "./features/inventory/adapters/authenticatedInventoryTransport";
 
 
 export async function startApplication(root: Root, mode: "mock" | "api", session: G7Session | null, gatewayOrigin?: string, securityApiBase?: string) {
@@ -51,6 +54,14 @@ export async function startApplication(root: Root, mode: "mock" | "api", session
   const bulkRepository = mode === "api" && gateway && session
     ? createHttpBulkRepository(createBulkFetchTransport(gateway), session)
     : null;
+  if (mode === "api" && gateway) {
+    const inventoryTransport = createAuthenticatedInventoryTransport(gateway, session);
+    configureInventoryApi(() =>
+      createHttpInventoryRepository({ transport: inventoryTransport }),
+    );
+  } else {
+    configureInventoryApi(null);
+  }
   root.render(
     <StrictMode>
       <MantineProvider

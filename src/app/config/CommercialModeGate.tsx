@@ -13,7 +13,7 @@ export function CommercialModeGate({ children }: { children: ReactNode }) {
   const mockOnly = ["/cupones", "/promociones", "/recomendaciones"].some(
     (path) => pathname === path || pathname.startsWith(`${path}/`),
   );
-  const pendingModule = ["/inventario", "/combos"].some(
+  const pendingModule = ["/combos"].some(
     (path) => pathname === path || pathname.startsWith(`${path}/`),
   );
   if (mode === "api" && (pendingModule || (mockOnly && !api)))
