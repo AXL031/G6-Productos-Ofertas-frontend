@@ -18,23 +18,28 @@ porque Azure ya valida esa identidad. `/consultas` conserva su cliente público
 separado: sus GET no fuerzan renovación ni invalidan la sesión por rechazo.
 Las escrituras siguen autenticadas y nunca se reenvían automáticamente. La vista de lectura comercial exige seleccionar el canal para productos y precios: al no
 enviar JWT, el backend no puede deducir el contexto de un gestor humano.
-El cliente soporta
-también GET autenticado con una sola renovación ante TOKEN_INVALIDO. No hay fallback
-mock ni se inventan campos administrativos a partir de DTO comerciales.
+El cliente valida el `Content-Type` de cada respuesta contra los formatos permitidos
+por la operación (incluido `application/json`) y exige parámetros `date-time`
+RFC 3339 completos con zona horaria. La vista identifica los filtros confirmados
+del último resultado y advierte cuando el usuario modifica los filtros antes de
+volver a consultar. No hay fallback mock ni se inventan campos administrativos.
 El resultado se muestra con los campos del servicio, distinguiendo null, cero,
 colección vacía, error y último resultado confirmado. Las colecciones se limitan
 visualmente a 200 filas; el usuario puede aplicar la paginación del servicio.
 
-En modo API, las entradas de productos, combos, precios, auditoría e inventario
-usan la vista de consultas preseleccionada para su operación. Así se muestran
-los DTO reales sin fabricar los estados/versiones administrativos que faltan
-en una lectura comercial. Los formularios de escritura, la demostración local
-y el guard de login se conservan. El recorrido de lectura no certifica las escrituras. Azure ya verificó G7
-y creación/edición QA de promoción y cupón; esto no homologa todas las pantallas,
-las lecturas administrativas de Catalog ausentes ni los flujos AMQP.
+En modo API, las diez pantallas administrativas de productos, combos, precios,
+auditoría e inventario conservan sus rutas y funcionalidades originales sin ser
+sustituidas por `ReadOnlyPage`, y muestran explícitamente la limitación del
+contrato administrativo disponible junto con un enlace directo a
+`/consultas?operacion=...` para las lecturas adicionales. Los formularios de
+escritura, la demostración local y el guard de login se conservan. El recorrido
+de lectura no certifica las escrituras. Azure ya verificó G7 y creación/edición
+QA de promoción y cupón; esto no homologa todas las pantallas, las lecturas
+administrativas de Catalog ausentes ni los flujos AMQP.
 
-`vercel.json` fija explícitamente el build API y las dos URLs públicas. No son
-secretos. Los secretos y JWT no forman parte del build. En dominios `vercel.app`,
+`vercel.json` define valores por defecto (`${VAR:-default}`) para el build API y
+las dos URLs públicas sin sobrescribir variables configuradas por entorno en
+Vercel. No son secretos. Los secretos y JWT no forman parte del build. En dominios `vercel.app`,
 las llamadas a Azure y G7 pasan por rewrites de mismo origen para evitar CORS,
 sin cambiar sus destinatarios finales. Las respuestas dinámicas usan no-store.
 Fuera de Vercel se mantienen los orígenes explícitos configurados.

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { buildReadPath, createReadOnlyClient, type ReadSession } from "../reads/readOnlyClient";
+import { buildReadPath, createReadOnlyClient, isValidDateTime, type ReadSession } from "../reads/readOnlyClient";
 import { readOperations } from "../reads/readOperations";
 import { resolveGatewayOrigin, resolveG7ApiBase } from "../../app/config/gatewayOrigin";
 
@@ -25,6 +25,24 @@ describe("consultas contractuales de lectura", () => {
     expect(() => buildReadPath("obtenerProducto", {})).toThrow("productoId");
     expect(() => buildReadPath("listarProductos", { tamanio: "101" })).toThrow("rango");
     expect(() => buildReadPath("listarProductos", { canal: "INVENTADO" })).toThrow("válido");
+  });
+  it("valida estrictamente parámetros date-time según RFC 3339 incluyendo zona horaria", () => {
+    expect(isValidDateTime("2026-11-12T10:30:00Z")).toBe(true);
+    expect(isValidDateTime("2026-11-12T10:30:00.250-05:00")).toBe(true);
+    expect(isValidDateTime("2024-02-29T23:59:59+00:00")).toBe(true);
+    expect(isValidDateTime("2026-11-12")).toBe(false);
+    expect(isValidDateTime("2026-11-12T10:30:00")).toBe(false);
+    expect(isValidDateTime("2026-11-12 10:30:00Z")).toBe(false);
+    expect(isValidDateTime("2026-02-29T10:30:00Z")).toBe(false);
+    expect(isValidDateTime("2026-11-12T24:00:00Z")).toBe(false);
+    expect(isValidDateTime("2026-11-12T10:30:00+24:00")).toBe(false);
+    expect(isValidDateTime("2026-11-12T10:30:00-00:00")).toBe(false);
+    expect(() => buildReadPath("listarAuditoriaPrecios", { desde: "2026-11-12" })).toThrow("zona horaria");
+    expect(() => buildReadPath("listarAuditoriaPrecios", { desde: "2026-11-12T10:30:00" })).toThrow("zona horaria");
+    expect(() => buildReadPath("obtenerPrecioSku", { sku: "SKU-1", at: "2026-02-29T10:30:00Z" })).toThrow("zona horaria");
+    expect(buildReadPath("obtenerPrecioSku", { sku: "SKU-1", at: "2026-11-12T10:30:00-05:00" })).toBe(
+      "/api/v1/precios/skus/SKU-1?at=2026-11-12T10%3A30%3A00-05%3A00",
+    );
   });
   it("codifica un SKU opaco y rechaza navegación a otra ruta", () => {
     expect(buildReadPath("obtenerPrecioSku", { sku: "SKU/A?x=1" })).toBe("/api/v1/precios/skus/SKU%2FA%3Fx%3D1");
@@ -92,6 +110,18 @@ describe("consultas contractuales de lectura", () => {
   it("rechaza HTML servido accidentalmente por el fallback SPA", async () => {
     const { client } = setup([new Response("<html>SPA</html>", { headers: { "content-type": "text/html" } })]);
     await expect(client.read("listarProductos", {}, signal())).rejects.toThrow("formato esperado");
+  });
+  it("valida el Content-Type de cada respuesta contra los formatos permitidos por la operación, incluido JSON", async () => {
+    const { client: jsonOnCsvClient } = setup([Response.json({ unexpected: true })]);
+    await expect(jsonOnCsvClient.read("descargarReporteImportacionPrecios", { batchId: "batch-1" }, signal())).rejects.toThrow("formato esperado");
+
+    const { client: csvOnJsonClient } = setup([new Response("id,nombre\n1,test\n", { headers: { "content-type": "text/csv; charset=utf-8" } })]);
+    await expect(csvOnJsonClient.read("listarProductos", { canal: "MARKETPLACE" }, signal())).rejects.toThrow("formato esperado");
+
+    const { client: validCsvClient } = setup([new Response("fila,error\n2,duplicado\n", { headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": 'attachment; filename="errores.csv"' } })]);
+    const fileResult = await validCsvClient.read("descargarReporteImportacionPrecios", { batchId: "batch-1" }, signal());
+    expect(fileResult.kind).toBe("file");
+    if (fileResult.kind === "file") expect(fileResult.filename).toBe("errores.csv");
   });
   it("en Vercel utiliza el proxy al mismo origen y mantiene el destino explícito fuera de Vercel", () => {
     const azure = "https://api-gateway.calmgrass-aec0b33c.chilecentral.azurecontainerapps.io";

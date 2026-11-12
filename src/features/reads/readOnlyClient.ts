@@ -15,6 +15,34 @@ export class ReadFailure extends Error {}
 export const requiresPublicReadChannel = (id: string) =>
   ["listarProductos", "obtenerProducto", "consultarPrecios", "obtenerPrecioSku"].includes(id);
 
+const DATE_TIME_PATTERN =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(Z|([+-])(\d{2}):(\d{2}))$/;
+
+export function isValidDateTime(value: string): boolean {
+  const match = DATE_TIME_PATTERN.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+  const tzSign = match[8];
+  const tzHour = match[9] !== undefined ? Number(match[9]) : 0;
+  const tzMinute = match[10] !== undefined ? Number(match[10]) : 0;
+  if (month < 1 || month > 12 || day < 1 || day > 31) return false;
+  if (hour > 23 || minute > 59 || second > 59) return false;
+  if (tzHour > 23 || tzMinute > 59) return false;
+  if (tzSign === "-" && tzHour === 0 && tzMinute === 0) return false;
+  const utc = new Date(Date.UTC(year, month - 1, day));
+  return (
+    utc.getUTCFullYear() === year &&
+    utc.getUTCMonth() === month - 1 &&
+    utc.getUTCDate() === day &&
+    Number.isFinite(Date.parse(value))
+  );
+}
+
 function validate(parameter: ReadParameter, value: string): void {
   if (parameter.enum && !parameter.enum.some(item => String(item) === value))
     throw new ReadFailure(`Selecciona un valor válido para ${parameter.name}.`);
@@ -25,7 +53,7 @@ function validate(parameter: ReadParameter, value: string): void {
         (parameter.maximum !== undefined && number > parameter.maximum))
       throw new ReadFailure(`Revisa el rango de ${parameter.name}.`);
   }
-  if (parameter.format === "date-time" && !Number.isFinite(Date.parse(value)))
+  if (parameter.format === "date-time" && !isValidDateTime(value))
     throw new ReadFailure(`Ingresa una fecha con hora y zona horaria en ${parameter.name}.`);
 }
 
@@ -116,13 +144,13 @@ export function createReadOnlyClient(origin: string, session: ReadSession, fetch
       }
       const bytes = await limitedBody(response);
       const mediaType = response.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase() ?? "";
+      const operation = readOperations.find(item => item.id === id)!;
+      if (!operation.mediaTypes.includes(mediaType) || mediaType === "text/html")
+        throw new ReadFailure("El backend no entregó el formato esperado para esta consulta.");
       if (mediaType === "application/json") {
         try { return { kind: "data", value: JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) }; }
         catch { throw new ReadFailure("El backend entregó un resultado ilegible."); }
       }
-      const operation = readOperations.find(item => item.id === id)!;
-      if (!operation.mediaTypes.includes(mediaType) || mediaType === "text/html")
-        throw new ReadFailure("El backend no entregó el formato esperado para esta consulta.");
       const filename = /filename="?([^";\r\n]+)/i.exec(response.headers.get("content-disposition") ?? "")?.[1]
         ?.replace(/[\\/:*?"<>|]/g, "_") ?? (mediaType === "application/pdf" ? "reporte.pdf" : mediaType === "text/csv" ? "reporte.csv" : "descarga.xlsx");
       return { kind: "file", blob: new Blob([new Uint8Array(bytes)], { type: mediaType }), filename };

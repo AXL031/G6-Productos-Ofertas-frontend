@@ -4,7 +4,7 @@ import { createAuthenticatedCatalogTransport } from "../catalog/adapters/authent
 import { createAuthenticatedTaxonomyGateway } from "../taxonomy/services/taxonomyGatewayRuntime";
 import { createPromotionSessionRuntime } from "../promotions/services/promotionSessionRuntime";
 import { createHttpBulkRepository } from "../bulk/adapters/httpBulkRepository";
-import { publicReadEntries } from "../../app/routes/publicReadEntries";
+import { consultaEntries, consultaHref, publicReadEntries } from "../../app/routes/publicReadEntries";
 import { readOperations } from "../reads/readOperations";
 
 const origin = "https://gateway.example.test";
@@ -21,9 +21,13 @@ function setup() {
 afterEach(() => vi.restoreAllMocks());
 
 describe("login conservado y lecturas públicas sin JWT", () => {
-  it("las entradas de lectura usan operaciones publicadas y excluyen las rutas de escritura", () => {
-    for (const [path, id] of Object.entries(publicReadEntries)) {
-      expect(readOperations.some(operation => operation.id === id)).toBe(true);
+  it("las 10 pantallas con limitación de contrato administrativo exponen aviso explícito y enlace a /consultas", () => {
+    expect(Object.keys(consultaEntries)).toHaveLength(10);
+    for (const [path, entry] of Object.entries(consultaEntries)) {
+      expect(readOperations.some(operation => operation.id === entry.operationId)).toBe(true);
+      expect(entry.limitation.length).toBeGreaterThan(20);
+      expect(consultaHref(entry.operationId)).toBe(`/consultas?operacion=${encodeURIComponent(entry.operationId)}`);
+      expect(publicReadEntries[path]).toBe(entry.operationId);
       expect(path).not.toMatch(/nuevo|nueva|editar|activar|desactivar|reactivar|importar|exportar/);
     }
     expect(publicReadEntries["/productos"]).toBe("listarProductos");

@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
   "installCommand": "npm ci",
-  "buildCommand": "VITE_DATA_MODE=api VITE_GATEWAY_ORIGIN=https://api-gateway.calmgrass-aec0b33c.chilecentral.azurecontainerapps.io VITE_G7_API_BASE=https://g7-auth-service.onrender.com/api/v1 VITE_G6_READ_DEMO=false npm run build",
+  "buildCommand": "VITE_DATA_MODE=${VITE_DATA_MODE:-api} VITE_GATEWAY_ORIGIN=${VITE_GATEWAY_ORIGIN:-https://api-gateway.calmgrass-aec0b33c.chilecentral.azurecontainerapps.io} VITE_G7_API_BASE=${VITE_G7_API_BASE:-https://g7-auth-service.onrender.com/api/v1} VITE_G6_READ_DEMO=${VITE_G6_READ_DEMO:-false} npm run build",
   "outputDirectory": "dist",
   "rewrites": [
     {

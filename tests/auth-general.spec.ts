@@ -258,26 +258,76 @@ async function expectLoginInsideViewport(page: Page) {
   }
 }
 test("la entrada de productos conserva el login y consulta el canal elegido sin JWT", async ({ page }) => {
-  const reads: string[] = [];
-  await page.route("**/api/v1/productos?**", async route => {
-    expect(route.request().method()).toBe("GET");
-    expect(route.request().headers()).not.toHaveProperty("authorization");
-    reads.push(route.request().url());
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
-      items: [{ product_id: "isolated-product", name: "Producto contractual de lectura" }], pagina: 1, tamanio: 20, total: 1,
-    }) });
+  const adminReads: string[] = [];
+  const publicReads: string[] = [];
+  await page.route(`http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? 5173}/api/v1/**`, async route => {
+    const requestUrl = new URL(route.request().url());
+    if (requestUrl.pathname.endsWith("/categorias")) {
+      expect(route.request().headers().authorization).toMatch(/^Bearer /);
+      adminReads.push(route.request().url());
+      await route.fulfill({ json: { categories: [] } });
+      return;
+    }
+    if (requestUrl.pathname.endsWith("/marcas")) {
+      expect(route.request().headers().authorization).toMatch(/^Bearer /);
+      adminReads.push(route.request().url());
+      await route.fulfill({ json: { brands: [] } });
+      return;
+    }
+    if (requestUrl.pathname.endsWith("/tipos-producto")) {
+      expect(route.request().headers().authorization).toMatch(/^Bearer /);
+      adminReads.push(route.request().url());
+      await route.fulfill({ json: { items: [], meta: { pagina: 1, tamanio: 100, total: 0, totalPaginas: 0 } } });
+      return;
+    }
+    if (requestUrl.pathname === "/api/v1/productos") {
+      expect(route.request().method()).toBe("GET");
+      if (requestUrl.searchParams.has("canal")) {
+        expect(route.request().headers()).not.toHaveProperty("authorization");
+        publicReads.push(route.request().url());
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            items: [{ product_id: "isolated-product", name: "Producto contractual de lectura" }],
+            pagina: 1,
+            tamanio: 20,
+            total: 1,
+          }),
+        });
+      } else {
+        expect(route.request().headers().authorization).toMatch(/^Bearer /);
+        adminReads.push(route.request().url());
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ items: [], pagina: 1, tamanio: 10, total: 0, totalPaginas: 0 }),
+        });
+      }
+      return;
+    }
+    await route.fulfill({ status: 404, json: {} });
   });
   await page.goto("/productos");
   await expect(page).toHaveURL(/\/login$/);
   await login(page);
+  await expect(page.getByRole("heading", { name: "Gestión de productos", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Crear producto", exact: true })).toBeVisible();
+  await expect(page.getByText("Limitación del contrato administrativo:", { exact: true })).toBeVisible();
+  await expect.poll(() => adminReads.length).toBeGreaterThanOrEqual(1);
+  await page.getByRole("link", { name: "Abrir en Consultas de los módulos", exact: true }).click();
+  await expect(page).toHaveURL(/\/consultas\?operacion=listarProductos$/);
   await expect(page.getByRole("heading", { name: "Consultas de los módulos", exact: true })).toBeVisible();
   await page.getByRole("combobox", { name: /^Canal/ }).click();
   await page.getByRole("option", { name: "MARKETPLACE", exact: true }).click();
   await page.getByRole("button", { name: "Consultar", exact: true }).click();
   await expect(page.getByText("Producto contractual de lectura", { exact: true })).toBeVisible();
-  expect(reads).toHaveLength(1);
-  const read = reads[0];
-  if (!read) throw new Error("No se registró la consulta de productos.");
+  await expect(page.getByText(/Filtros confirmados \(Listar y buscar productos comercialmente activos\): Canal: MARKETPLACE/)).toBeVisible();
+  await page.getByLabel("Buscar").fill("zapatilla");
+  await expect(page.getByText("Filtros modificados sin consultar", { exact: true })).toBeVisible();
+  expect(publicReads).toHaveLength(1);
+  const read = publicReads[0];
+  if (!read) throw new Error("No se registró la consulta pública de productos.");
   expect(new URL(read).searchParams.get("canal")).toBe("MARKETPLACE");
   expect(calls.filter(call => call.path.endsWith("/login"))).toHaveLength(1);
 });

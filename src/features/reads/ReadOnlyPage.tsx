@@ -1,10 +1,11 @@
 import { useContext, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Button, Group, Paper, Select, SimpleGrid, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { PageHeader, FeedbackAlert } from "../../components/shared";
 import { GatewayOriginContext } from "../../app/config/GatewayOriginContext";
 import { DataModeContext } from "../../app/config/DataModeContext";
 import { useAuthSession } from "../../app/config/useAuthSession";
-import { readOperations } from "./readOperations";
+import { readOperations, type ReadOperation } from "./readOperations";
 import { createReadOnlyClient, ReadFailure, requiresPublicReadChannel, type ReadResult } from "./readOnlyClient";
 
 const modules = [...new Set(readOperations.map(item => item.module))];
@@ -12,6 +13,25 @@ const labels: Record<string, string> = { q: "Buscar", skus: "SKU (separados por 
 const label = (key: string) => labels[key] ?? (key.replace(/_/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, value => value.toUpperCase()));
 const defaults = (id: string) => Object.fromEntries(readOperations.find(item => item.id === id)!.parameters.filter(p => p.default !== undefined).map(p => [p.name, String(p.default)]));
 const isObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
+
+function serializeFilters(operation: ReadOperation, values: Readonly<Record<string, string>>): string {
+  return JSON.stringify(operation.parameters.map(parameter => [parameter.name, (values[parameter.name] ?? "").trim()]));
+}
+
+function describeFilters(operation: ReadOperation, values: Readonly<Record<string, string>>): string {
+  const entries = operation.parameters
+    .map(parameter => [label(parameter.name), (values[parameter.name] ?? "").trim()] as const)
+    .filter(([, value]) => value.length > 0)
+    .map(([name, value]) => `${name}: ${value}`);
+  return entries.length > 0 ? entries.join(" · ") : "Sin filtros adicionales";
+}
+
+type ConfirmedQuery = {
+  operationId: string;
+  operationTitle: string;
+  snapshot: string;
+  summary: string;
+};
 
 function ResultValue({ value, depth = 0 }: { value: unknown; depth?: number }) {
   if (value === null || value === undefined) return <Text size="sm" c="dimmed">Sin dato</Text>;
@@ -34,15 +54,16 @@ function ResultValue({ value, depth = 0 }: { value: unknown; depth?: number }) {
   return <Stack gap="md">{Object.entries(value).map(([key, item]) => <div key={key}><Text fw={600} size="sm" mb={4}>{label(key)}</Text><ResultValue value={item} depth={depth + 1} /></div>)}</Stack>;
 }
 
-export function ReadOnlyPage({ initialOperationId = "listarProductos" }: { initialOperationId?: string }) {
+function ReadOnlyView({ initialOperationId }: { initialOperationId: string }) {
   const gateway = useContext(GatewayOriginContext);
   const mode = useContext(DataModeContext);
   const { session } = useAuthSession();
-  const initialOperation = readOperations.find(item => item.id === initialOperationId)!;
+  const initialOperation = readOperations.find(item => item.id === initialOperationId) ?? readOperations[0]!;
   const [module, setModule] = useState(initialOperation.module);
-  const [id, setId] = useState(initialOperationId);
-  const [values, setValues] = useState<Record<string, string>>(() => defaults(initialOperationId));
+  const [id, setId] = useState(initialOperation.id);
+  const [values, setValues] = useState<Record<string, string>>(() => defaults(initialOperation.id));
   const [result, setResult] = useState<ReadResult | null>(null);
+  const [confirmed, setConfirmed] = useState<ConfirmedQuery | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [updated, setUpdated] = useState("");
@@ -52,10 +73,12 @@ export function ReadOnlyPage({ initialOperationId = "listarProductos" }: { initi
   const client = useMemo(() => gateway && session ? createReadOnlyClient(gateway, session, fetch, { publicReadOnly: true }) : null, [gateway, session]);
   const operations = readOperations.filter(item => item.module === module);
   const operation = readOperations.find(item => item.id === id)!;
+  const currentSnapshot = serializeFilters(operation, values);
+  const filtersModified = Boolean(result && confirmed && (confirmed.operationId !== id || confirmed.snapshot !== currentSnapshot));
   useEffect(() => () => pending.current?.abort(), []);
   function select(nextId: string) {
     pending.current?.abort(); pending.current = null;
-    setId(nextId); setValues(defaults(nextId)); setResult(null); setError(""); setBusy(false); setUpdated("");
+    setId(nextId); setValues(defaults(nextId)); setResult(null); setConfirmed(null); setError(""); setBusy(false); setUpdated("");
   }
   async function consult(event: FormEvent) {
     event.preventDefault();
@@ -66,7 +89,14 @@ export function ReadOnlyPage({ initialOperationId = "listarProductos" }: { initi
     try {
       const response = await client.read(id, values, request.signal);
       if (request.signal.aborted) return;
-      setResult(response); setUpdated(new Date().toLocaleString("es-PE"));
+      setResult(response);
+      setUpdated(new Date().toLocaleString("es-PE"));
+      setConfirmed({
+        operationId: id,
+        operationTitle: operation.title,
+        snapshot: serializeFilters(operation, values),
+        summary: describeFilters(operation, values),
+      });
     } catch (failure) {
       if (request.signal.aborted) return;
       setError(failure instanceof ReadFailure ? failure.message : "No se pudo conectar con el backend. Conserva los filtros y vuelve a consultar.");
@@ -90,7 +120,19 @@ export function ReadOnlyPage({ initialOperationId = "listarProductos" }: { initi
       <Text size="sm" c="dimmed">La primera consulta puede tardar hasta un minuto. Puedes cancelarla mientras esperas.</Text>
       <Group><Button type="submit" loading={busy} disabled={!client || mode !== "api"}>Consultar</Button>{busy && <Button variant="subtle" onClick={() => { pending.current?.abort(); setBusy(false); }}>Cancelar consulta</Button>}</Group>
     </Stack></form></Paper>
+    {filtersModified && confirmed && (
+      <FeedbackAlert semantic="warning" title="Filtros modificados sin consultar">
+        Modificaste los filtros respecto al último resultado confirmado ({confirmed.summary}). Pulsa Consultar para actualizar los datos.
+      </FeedbackAlert>
+    )}
     {error && <FeedbackAlert semantic="error" title="No se pudo actualizar la consulta">{error}{result && " Se conserva el resultado anterior; no representa una actualización confirmada."}</FeedbackAlert>}
-    {result && <Paper withBorder p="lg"><Stack gap="md"><Title order={2}>Resultado</Title><Text size="sm" c="dimmed">Última consulta confirmada: {updated}</Text>{result.kind === "data" ? <ResultValue value={result.value} /> : <Button variant="outline" onClick={download}>Guardar {result.filename}</Button>}</Stack></Paper>}
+    {result && <Paper withBorder p="lg"><Stack gap="md"><Title order={2}>Resultado</Title><Text size="sm" c="dimmed">Última consulta confirmada: {updated}</Text>{confirmed && <Text size="sm" c="dimmed">Filtros confirmados ({confirmed.operationTitle}): {confirmed.summary}</Text>}{result.kind === "data" ? <ResultValue value={result.value} /> : <Button variant="outline" onClick={download}>Guardar {result.filename}</Button>}</Stack></Paper>}
   </Stack>;
+}
+
+export function ReadOnlyPage({ initialOperationId = "listarProductos" }: { initialOperationId?: string }) {
+  const [searchParams] = useSearchParams();
+  const requested = searchParams.get("operacion");
+  const effectiveId = requested && readOperations.some(item => item.id === requested) ? requested : initialOperationId;
+  return <ReadOnlyView key={effectiveId} initialOperationId={effectiveId} />;
 }

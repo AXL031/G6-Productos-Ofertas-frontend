@@ -1,8 +1,10 @@
 import { PromotionApiContext } from "./PromotionApiContext";
 import { useContext, type ReactNode } from "react";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+import { Anchor } from "@mantine/core";
 import { FeedbackAlert } from "../../components/shared";
 import { DataModeContext } from "./DataModeContext";
+import { consultaEntries, consultaHref } from "../routes/publicReadEntries";
 
 export function CommercialModeGate({ children }: { children: ReactNode }) {
   const mode = useContext(DataModeContext);
@@ -16,11 +18,23 @@ export function CommercialModeGate({ children }: { children: ReactNode }) {
   const pendingModule = ["/inventario", "/combos"].some(
     (path) => pathname === path || pathname.startsWith(`${path}/`),
   );
-  if (mode === "api" && (pendingModule || (mockOnly && !api)))
+  if (mode === "api" && (pendingModule || (mockOnly && !api))) {
+    const entry = consultaEntries[pathname];
     return (
       <FeedbackAlert semantic="error" title="Función no disponible">
         Esta función no está disponible en el modo actual.
+        {entry ? (
+          <>
+            {" "}
+            {entry.limitation}{" "}
+            <Anchor component={Link} to={consultaHref(entry.operationId)}>
+              Abrir en Consultas de los módulos
+            </Anchor>
+            .
+          </>
+        ) : null}
       </FeedbackAlert>
     );
+  }
   return children;
 }
