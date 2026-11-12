@@ -5,7 +5,7 @@ import {
   DemoApiError,
 } from "../src/features/catalog/adapters/demoCatalogApi";
 
-test("Deploy: proxies limitados a Azure/G7, entorno respetado por defecto y la demo apagada no ocupa rutas", async ({ page }) => {
+test("Deploy: proxies limitados a Azure/G7, comando corto y la demo apagada no ocupa rutas", async ({ page }) => {
   const config = JSON.parse(readFileSync("vercel.json", "utf8"));
   const external = config.rewrites.filter((rule: { destination: string }) => rule.destination.startsWith("https://"));
   expect(external).toHaveLength(2);
@@ -20,10 +20,8 @@ test("Deploy: proxies limitados a Azure/G7, entorno respetado por defecto y la d
     expect(policy.headers).toContainEqual({ key: "Cache-Control", value: "private, no-store" });
   }
   expect(config.rewrites.at(-1)).toEqual({ source: "/(.*)", destination: "/index.html" });
-  expect(config.buildCommand).toContain("VITE_DATA_MODE=${VITE_DATA_MODE:-api}");
-  expect(config.buildCommand).toContain("VITE_GATEWAY_ORIGIN=${VITE_GATEWAY_ORIGIN:-https://api-gateway.calmgrass-aec0b33c.chilecentral.azurecontainerapps.io}");
-  expect(config.buildCommand).toContain("VITE_G7_API_BASE=${VITE_G7_API_BASE:-https://g7-auth-service.onrender.com/api/v1}");
-  expect(config.buildCommand).toContain("VITE_G6_READ_DEMO=${VITE_G6_READ_DEMO:-false}");
+  expect(config.buildCommand).toBe("node scripts/build-vercel.mjs");
+  expect(config.buildCommand.length).toBeLessThanOrEqual(256);
   await page.goto("/demo/g6/productos");
   await expect(page.getByRole("heading", { name: "G6 · Productos y Ofertas" })).toHaveCount(0);
   await expect(page.getByRole("navigation").first()).toBeVisible();
