@@ -124,10 +124,15 @@ try {
         for (const [status, code] of [[403, "SCOPE_INSUFICIENTE"], [401, "DESCONOCIDO"], [401, "TOKEN_INVALIDO"]]) {
           fixture.state.gatewayStatus = status; fixture.state.gatewayCode = code;
           const refreshes = fixture.state.calls.filter(c => c.path.endsWith("/auth/refresh")).length;
-          await visit(page, base, "/productos");
+          // /productos is an explicit public-read view in the Azure deployment.
+          // Exercise JWT rejection on a native authenticated administrative GET.
+          const deniedRead = page.waitForResponse(response => response.url().startsWith(fixture.origin + "/api/v1/cupones") && response.status() === status);
+          await visit(page, base, "/cupones");
+          await deniedRead;
           if (code === "TOKEN_INVALIDO") {
             await page.waitForURL("**/login");
             await page.waitForFunction(() => performance.getEntriesByType("navigation")[0]?.type === "reload");
+            check(fixture.state.calls.filter(c => c.path.endsWith("/auth/refresh")).length === refreshes + 1, "401 protegido renueva una vez antes de cerrar la sesión");
             await page.getByRole("heading", { name: "Iniciar sesión", exact: true }).waitFor(); checks++;
           }
           else { await page.getByRole("navigation", { name: "Navegación de la aplicación" }).waitFor(); check(fixture.state.calls.filter(c => c.path.endsWith("/auth/refresh")).length === refreshes, "401 desconocido y 403 no renuevan sesión"); }

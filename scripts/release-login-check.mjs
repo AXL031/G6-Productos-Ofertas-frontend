@@ -1,5 +1,5 @@
 import { chromium, request as playwrightRequest } from "playwright";
-import { permittedRequest, protectedCouponRead, verifyIntegrations, verifyNoRedirect, verifyPreviewLocation } from "./release-login-policy.mjs";
+import { permittedRequest, protectedCouponRead, verifyIntegrations, verifyNoRedirect, verifyPreviewLocation, verifyPricesContent } from "./release-login-policy.mjs";
 import { ReleaseSessionEvidence } from "./release-session-evidence.mjs";
 
 // Runs with a fresh, disposable context: no traces, HAR, screenshots, passwords,
@@ -94,8 +94,16 @@ export async function verifyReleaseLogin(policy, { email, password, manualMfa = 
     await page.getByText("Todavía no hay cupones", { exact: true }).or(page.locator("caption", { hasText: "Cupones de descuento" })).first().waitFor();
     await page.getByRole("link", { name: "Consultar precios", exact: true }).click();
     await page.waitForURL(policy.preview + "/precios");
-    await page.getByRole("heading", { name: "Gestión de precios", exact: true, level: 1 }).waitFor();
-    await page.getByText("Consulta los precios vigentes de productos y variantes (SKU).", { exact: true }).waitFor();
+    const nativePrices = page.getByRole("heading", { name: "Gestión de precios", exact: true, level: 1 });
+    const readOnlyPrices = page.getByRole("heading", { name: "Consultas de los módulos", exact: true, level: 1 });
+    await nativePrices.or(readOnlyPrices).waitFor();
+    if (await nativePrices.isVisible()) {
+      const description = page.getByText("Consulta los precios vigentes de productos y variantes (SKU).", { exact: true });
+      await description.waitFor();
+      verifyPricesContent({ heading: (await nativePrices.textContent())?.trim(), description: (await description.textContent())?.trim() });
+    } else {
+      verifyPricesContent({ heading: (await readOnlyPrices.textContent())?.trim(), module: await page.getByRole("combobox", { name: "Módulo", exact: true }).inputValue(), operation: await page.getByRole("combobox", { name: "Consulta", exact: true }).inputValue() });
+    }
     healthy(); verifyPreviewLocation(policy, page.url());
     await page.getByRole("button", { name: "Cerrar sesión", exact: true }).click();
     await page.waitForURL(policy.preview + "/login");
