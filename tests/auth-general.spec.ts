@@ -9,6 +9,7 @@ import { pathToFileURL } from "node:url";
 let provider: Server;
 let base: string;
 let mfa: boolean;
+let forceJwe: boolean;
 let failure: string;
 let expiry: number;
 let roles: string[];
@@ -23,7 +24,7 @@ const dto = {
   usuario: { id: "11111111-1111-4111-8111-111111111111", nombreCompleto: "Gestora de prueba", correo: "isolated@example.test", roles: ["GESTOR_COMERCIAL"] },
 };
 test.beforeEach(async ({ page }) => {
-  mfa = false; failure = ""; expiry = 900; calls = []; roles = ["GESTOR_COMERCIAL"]; demo = false; fullName = dto.usuario.nombreCompleto; holdRefresh = false; releaseRefresh = undefined;
+  forceJwe = false; mfa = false; failure = ""; expiry = 900; calls = []; roles = ["GESTOR_COMERCIAL"]; demo = false; fullName = dto.usuario.nombreCompleto; holdRefresh = false; releaseRefresh = undefined;
   provider = createServer(async (req, res) => {
     res.setHeader("Access-Control-Allow-Origin", `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? 5173}`);
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -40,7 +41,7 @@ test.beforeEach(async ({ page }) => {
     if (failure) { res.writeHead(failure === "UNAVAILABLE" ? 503 : failure === "OTP_EXPIRADO" ? 410 : 401).end(JSON.stringify({ code: failure, detail: "SENSITIVE_DETAIL" })); return; }
     if (path.endsWith("/login") && mfa) { res.end(JSON.stringify({ mfaRequerido: true, challengeToken: "isolated-challenge", expiraEn: 300 })); return; }
     if (path.endsWith("/solicitar")) { res.writeHead(202).end("{}"); return; }
-    res.end(JSON.stringify({ ...dto, usuario: { ...dto.usuario, nombreCompleto: fullName, roles }, expiresIn: expiry, ...(path.endsWith("/refresh") ? { refreshToken: `isolated-rotation-${calls.length}` } : {}) }));
+    res.end(JSON.stringify({ ...dto, ...(forceJwe ? { accessToken: "eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..fixture.iv.tag" } : {}), usuario: { ...dto.usuario, nombreCompleto: fullName, roles }, expiresIn: expiry, ...(path.endsWith("/refresh") ? { refreshToken: `isolated-rotation-${calls.length}` } : {}) }));
   });
   provider.listen(0, "127.0.0.1");
   await once(provider, "listening");
@@ -481,4 +482,36 @@ test("MFA pendiente, código inválido/vencido y confirmación con la misma sesi
   await page.getByRole("button", { name: "Verificar código" }).click();
   await expect(page).toHaveURL(/\/combos$/);
   expect(calls.filter(call => call.path.endsWith("/verificar"))).toHaveLength(4);
+});
+
+test("G7 recibe formato JWS en login, MFA y renovacion sin cambiar la identidad", async ({ page }) => {
+  mfa = true;
+  expiry = 120;
+  await page.clock.install({ time: new Date("2026-11-12T12:00:00Z") });
+  await page.goto("/combos");
+  await login(page);
+  await expect(page.getByRole("heading", { name: "Verificar identidad" })).toBeVisible();
+  await page.getByLabel("Código de verificación").fill("123456");
+  await page.getByRole("button", { name: "Verificar código", exact: true }).click();
+  await expect(page.getByRole("navigation", { name: "Navegación de la aplicación" })).toBeVisible();
+  expect(calls.find(call => call.path.endsWith("/login"))?.body.formatoAcceso).toBe("JWS");
+  expect(calls.find(call => call.path.endsWith("/otp/verificar"))?.body).toEqual({ challengeToken: "isolated-challenge", codigo: "123456", formatoAcceso: "JWS" });
+  expiry = 900;
+  await page.clock.fastForward(120001);
+  await expect.poll(() => calls.filter(call => call.path.endsWith("/refresh")).length).toBe(1);
+  expect(calls.find(call => call.path.endsWith("/refresh"))?.body.formatoAcceso).toBe("JWS");
+  await expect(page.getByRole("navigation", { name: "Navegación de la aplicación" })).toBeVisible();
+});
+
+test("una respuesta JWE inesperada no abre una sesion de G6", async ({ page }) => {
+  mfa = true;
+  await page.goto("/login");
+  await login(page);
+  await expect(page.getByRole("heading", { name: "Verificar identidad" })).toBeVisible();
+  forceJwe = true;
+  await page.getByLabel("Código de verificación").fill("123456");
+  await page.getByRole("button", { name: "Verificar código", exact: true }).click();
+  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page.getByRole("navigation")).toHaveCount(0);
+  expect(await page.evaluate(() => JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }))).not.toMatch(/eyJ|refreshToken|challengeToken/);
 });
