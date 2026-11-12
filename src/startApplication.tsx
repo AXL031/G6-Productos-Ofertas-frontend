@@ -35,22 +35,22 @@ export async function startApplication(root: Root, mode: "mock" | "api", session
     mode === "api" && gatewayOrigin && securityApiBase && session
       ? (
           await import("./features/promotions/services/promotionSessionRuntime")
-        ).createOptionalPromotionSessionRuntime(gatewayOrigin, securityApiBase, session, { publicReads: true })
+        ).createOptionalPromotionSessionRuntime(gatewayOrigin, securityApiBase, session)
       : null;
   if (mode === "api" && gateway && session) {
     configureTaxonomyGateway(
-      createAuthenticatedTaxonomyGateway(gateway, session, fetch, { publicReads: true }),
+      createAuthenticatedTaxonomyGateway(gateway, session, fetch),
     );
   }
   const combosRuntime = await createCombosRuntime(mode, runtime);
   let catalogServices = (mode === "api" ? createOptionalCatalogHttpServices(gatewayOrigin) : null) ?? getCatalogServices(mode);
   if (mode === "api" && gateway && session) {
     catalogServices = createCatalogHttpServices(
-      createAuthenticatedCatalogTransport(gateway, session, { publicReads: true }),
+      createAuthenticatedCatalogTransport(gateway, session),
     );
   }
   const bulkRepository = mode === "api" && gateway && session
-    ? createHttpBulkRepository(createBulkFetchTransport(gateway), session, { publicReads: true })
+    ? createHttpBulkRepository(createBulkFetchTransport(gateway), session)
     : null;
   root.render(
     <StrictMode>

@@ -12,10 +12,11 @@ Por instrucción del usuario se conserva el modo académico PUBLIC_READ_ONLY ya
 activo en Azure: estos GET se envían sin bearer, después de comprobar la sesión
 de UI. Esto no cambia permisos del backend ni concede acceso a consultas que
 este rechace. No se reintenta anónimamente una solicitud con bearer rechazado.
-Por autorización expresa del usuario, los transportes de Catálogo, Taxonomía,
-Promociones y Bulk también omiten JWT en sus GET. Siguen exigiendo sesión de UI
-y conservan JWT en POST/PATCH. Los GET públicos denegados no fuerzan renovación
-ni invalidan la sesión. La vista de lectura comercial exige seleccionar el canal para productos y precios: al no
+Actualización del 12/11/2026: los transportes administrativos de Catálogo,
+Taxonomía, Promociones y Bulk vuelven a enviar el JWS de G7 también en GET,
+porque Azure ya valida esa identidad. `/consultas` conserva su cliente público
+separado: sus GET no fuerzan renovación ni invalidan la sesión por rechazo.
+Las escrituras siguen autenticadas y nunca se reenvían automáticamente. La vista de lectura comercial exige seleccionar el canal para productos y precios: al no
 enviar JWT, el backend no puede deducir el contexto de un gestor humano.
 El cliente soporta
 también GET autenticado con una sola renovación ante TOKEN_INVALIDO. No hay fallback
@@ -28,8 +29,9 @@ En modo API, las entradas de productos, combos, precios, auditoría e inventario
 usan la vista de consultas preseleccionada para su operación. Así se muestran
 los DTO reales sin fabricar los estados/versiones administrativos que faltan
 en una lectura comercial. Los formularios de escritura, la demostración local
-y el guard de login se conservan. Las escrituras siguen pendientes de la
-configuración de validación G7 de Azure y quedan fuera de esta entrega de lectura.
+y el guard de login se conservan. El recorrido de lectura no certifica las escrituras. Azure ya verificó G7
+y creación/edición QA de promoción y cupón; esto no homologa todas las pantallas,
+las lecturas administrativas de Catalog ausentes ni los flujos AMQP.
 
 `vercel.json` fija explícitamente el build API y las dos URLs públicas. No son
 secretos. Los secretos y JWT no forman parte del build. En dominios `vercel.app`,
