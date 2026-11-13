@@ -105,3 +105,4 @@ describe("authenticatedInventoryTransport", () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 });
+
