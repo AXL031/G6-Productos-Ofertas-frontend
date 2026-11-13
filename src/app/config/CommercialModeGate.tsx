@@ -15,9 +15,21 @@ export function CommercialModeGate({ children }: { children: ReactNode }) {
   const mockOnly = ["/cupones", "/promociones", "/recomendaciones"].some(
     (path) => pathname === path || pathname.startsWith(`${path}/`),
   );
-  const pendingModule = ["/inventario", "/combos"].some(
-    (path) => pathname === path || pathname.startsWith(`${path}/`),
-  );
+
+  // En modo API solo se habilitan /inventario/umbrales y /inventario/dashboard.
+  // /inventario y /inventario/traslados se conservan explícitamente bloqueadas.
+  const isBlockedInventory =
+    pathname === "/inventario" ||
+    pathname === "/inventario/" ||
+    pathname === "/inventario/traslados" ||
+    pathname.startsWith("/inventario/traslados/");
+
+  const pendingModule =
+    isBlockedInventory ||
+    ["/combos"].some(
+      (path) => pathname === path || pathname.startsWith(`${path}/`),
+    );
+
   if (mode === "api" && (pendingModule || (mockOnly && !api))) {
     const entry = consultaEntries[pathname];
     return (

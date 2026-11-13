@@ -23,14 +23,29 @@ import { CombosProvider } from "./features/combos/components/CombosProvider";
 import { BulkRepositoryContext } from "./features/bulk/services/BulkRepositoryContext";
 import { createBulkFetchTransport, createHttpBulkRepository } from "./features/bulk/adapters/httpBulkRepository";
 import { GatewayOriginContext } from "./app/config/GatewayOriginContext";
+import { configureInventoryApi } from "./features/inventory/services/inventoryProvider";
+import { createHttpInventoryRepository } from "./features/inventory/adapters/apiInventoryAdapter";
+import { createAuthenticatedInventoryTransport } from "./features/inventory/adapters/authenticatedInventoryTransport";
 
 
 export async function startApplication(root: Root, mode: "mock" | "api", session: G7Session | null, gatewayOrigin?: string, securityApiBase?: string) {
-  const runtime = await createPricingRuntime(mode);
   let gateway: string | undefined;
   try {
     if (gatewayOrigin) gateway = secureBase(gatewayOrigin, true);
   } catch { /* Each unavailable provider keeps its explicit configuration error. */ }
+
+  // Configurar Inventario ANTES de construir los runtimes consumidores (Combos, etc.)
+  // para que en modo Mock compartan la misma instancia singleton sin reiniciarla.
+  if (mode === "api" && gateway) {
+    const inventoryTransport = createAuthenticatedInventoryTransport(gateway, session);
+    configureInventoryApi(() =>
+      createHttpInventoryRepository({ transport: inventoryTransport }),
+    );
+  } else {
+    configureInventoryApi(null);
+  }
+
+  const runtime = await createPricingRuntime(mode);
   const promotions =
     mode === "api" && gatewayOrigin && securityApiBase && session
       ? (
